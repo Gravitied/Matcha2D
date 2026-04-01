@@ -47,7 +47,7 @@ Build order matters: types must build before everything else, core before world.
 
 ## The Shared Contract
 
-Both devs depend on `@matcha2d/types`. Changes here require agreement from both sides.
+Both devs depend on `@matcha2d/types`. Changes here require agreement from both sides. No developer should interact with the other developers packages or files no matter what (Neither dev A or dev B).
 
 ### Buffer Layout (`packages/types/src/buffers.ts`)
 

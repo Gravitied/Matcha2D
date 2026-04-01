@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/types" },
+    { "path": "packages/core" },
+    { "path": "packages/world" },
+    { "path": "packages/render" },
+    { "path": "packages/tools" }
+  ]
+}

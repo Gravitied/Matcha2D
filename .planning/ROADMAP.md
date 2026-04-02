@@ -1,0 +1,26 @@
+# Matcha2D Roadmap
+
+## Phase 01: WASM Physics Core
+**Goal:** Port Box2D C engine to WASM, integrate with existing TypeScript monorepo as the physics backend.
+
+**Requirements:**
+- WASM-01: Box2D compiles to WASM via Emscripten
+- WASM-02: WASM module exposes C API compatible with MatchaBuffers (SoA format)
+- WASM-03: TypeScript wrapper implements PhysicsBackend interface
+- WASM-04: WASM backend works with existing World simulation loop
+- WASM-05: Build pipeline produces .wasm + .js glue, integrated into npm build
+
+**Plans:**
+- [ ] 01-wasm-core-01-PLAN.md — Emscripten build pipeline for Box2D
+- [ ] 01-wasm-core-02-PLAN.md — WASM C API bridge for SoA buffers
+- [ ] 01-wasm-core-03-PLAN.md — TypeScript wrapper implementing PhysicsBackend
+- [ ] 01-wasm-core-04-PLAN.md — Integration with World + build pipeline
+
+## Phase 02: Collision Pipeline (Future)
+- [ ] To be planned
+
+## Phase 03: World & Simulation (Future)
+- [ ] To be planned
+
+## Phase 04: Renderer (Future)
+- [ ] To be planned

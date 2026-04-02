@@ -8,3 +8,6 @@ pkg/
 .turbo/
 .claude/
 Template-Repo/
+
+# WASM build intermediates (not the final dist output)
+packages/core/wasm/build/

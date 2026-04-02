@@ -298,7 +298,7 @@ function clipEdge(
   edge: { p1x: number; p1y: number; p2x: number; p2y: number; id1: number; id2: number },
   px: number, py: number,
   dirx: number, diry: number,
-  remove: boolean,
+  _remove: boolean,
 ): void {
   const d1 = dot(edge.p1x - px, edge.p1y - py, dirx, diry)
   const d2 = dot(edge.p2x - px, edge.p2y - py, dirx, diry)
@@ -309,25 +309,13 @@ function clipEdge(
   if (per < 1e-10) return
 
   if (d1 < 0) {
-    if (remove) {
-      edge.p1x = edge.p2x
-      edge.p1y = edge.p2y
-      edge.id1 = edge.id2
-    } else {
-      const t = -d1 / per
-      edge.p1x = edge.p1x + (edge.p2x - edge.p1x) * t
-      edge.p1y = edge.p1y + (edge.p2y - edge.p1y) * t
-    }
+    const t = -d1 / per
+    edge.p1x = edge.p1x + (edge.p2x - edge.p1x) * t
+    edge.p1y = edge.p1y + (edge.p2y - edge.p1y) * t
   } else if (d2 < 0) {
-    if (remove) {
-      edge.p2x = edge.p1x
-      edge.p2y = edge.p1y
-      edge.id2 = edge.id1
-    } else {
-      const t = -d2 / per
-      edge.p2x = edge.p2x + (edge.p1x - edge.p2x) * t
-      edge.p2y = edge.p2y + (edge.p1y - edge.p2y) * t
-    }
+    const t = -d2 / per
+    edge.p2x = edge.p2x + (edge.p1x - edge.p2x) * t
+    edge.p2y = edge.p2y + (edge.p1y - edge.p2y) * t
   }
 }
 

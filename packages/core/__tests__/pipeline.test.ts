@@ -4,6 +4,8 @@ import { broadphase, broadphaseBVH } from '../src/collision/broadphase.js'
 import { solveVelocity, solvePosition, integrate } from '../src/solver/sequential-impulse.js'
 import { createBuffers, ShapeType, BodyFlags, MAX_VERTICES_PER_SHAPE, DEFAULT_WORLD_CONFIG } from '@matcha2d/types'
 import type { CollisionPair, ContactManifold } from '@matcha2d/types'
+import { DynamicTree } from '../src/collision/dynamic-tree.js'
+import { computeBodyAABB } from '../src/collision/aabb.js'
 
 function makeBuffers(capacity = 16) {
   return createBuffers(capacity)
@@ -350,7 +352,6 @@ describe('collision pipeline', () => {
       buf.invMass[0] = 0; buf.invInertia[0] = 0
 
       // Body 1: dynamic square rotated 45 degrees (diamond shape), half-extent 0.5
-      // Starting far above, aimed at the center of the static square
       const angle45 = Math.PI / 4
       buf.positionX[1] = 0; buf.positionY[1] = 5
       buf.halfExtentX[1] = 0.5; buf.halfExtentY[1] = 0.5
@@ -358,26 +359,22 @@ describe('collision pipeline', () => {
       buf.angle[1] = angle45
       buf.flags[1] = BodyFlags.ACTIVE
       buf.mass[1] = 1; buf.invMass[1] = 1; buf.inertia[1] = 0.1; buf.invInertia[1] = 10
-      // Fast downward velocity
       buf.velocityX[1] = 0; buf.velocityY[1] = -20
 
-      const dt = 1 / 120 // smaller timestep for fast movement
+      const dt = 1 / 120
       const config = { ...DEFAULT_WORLD_CONFIG, impulseAccumulation: true, blockSolver: false }
 
       let minDistToCenter = Infinity
       for (let step = 0; step < 200; step++) {
-        integrate(buf, 2, dt, { x: 0, y: 0 }) // no gravity
+        integrate(buf, 2, dt, { x: 0, y: 0 })
         const manifolds = collide(buf, 2, null, 'sap', 'gjk')
         if (manifolds.length > 0) {
           solveVelocity(buf, manifolds, config)
           solvePosition(buf, manifolds, config)
         }
 
-        // Track how close the diamond's corner gets to the static square's center
-        // The diamond's bottom corner in world space:
         const cosA = Math.cos(buf.angle[1])
         const sinA = Math.sin(buf.angle[1])
-        // Corner at local (0, -0.5) — the bottom corner of the diamond
         const cornerLocalX = 0
         const cornerLocalY = -0.5
         const cornerWorldX = cosA * cornerLocalX - sinA * cornerLocalY + buf.positionX[1]
@@ -388,11 +385,9 @@ describe('collision pipeline', () => {
         }
       }
 
-      // The static square's surface is at distance 1.0 from center (half-extent = 1)
-      // The corner should NOT get closer than 1.0 (the surface) — if it does, it penetrated
-      // Allow very small tolerance for numerical precision
-      console.log(`Min dist to center: ${minDistToCenter.toFixed(6)}`)
-      expect(minDistToCenter).toBeGreaterThanOrEqual(0.98)
+      // Diamond edges extend further than corners at 45°. Edges hit first at ~1.387 from center.
+      // Verify corner never penetrates inside the square surface (distance 1.0 from center)
+      expect(minDistToCenter).toBeGreaterThanOrEqual(1.0)
     })
 
     it('fast horizontal square should not tunnel through thin vertical wall', () => {
@@ -431,6 +426,198 @@ describe('collision pipeline', () => {
 
       // The square should NOT have crossed the wall (or at least should have bounced)
       expect(crossedWall).toBe(false)
+    })
+  })
+
+  describe('master collision stress test', () => {
+    it('all shape types converge on center while spinning — full diagnostic', () => {
+      const N = 24
+      const radius = 5 // closer start so they actually collide
+      const buf = createBuffers(N)
+      const tree = new DynamicTree()
+
+      const shapeDefs: { type: number; hx: number; hy: number; r: number; verts?: number[][] }[] = [
+        { type: ShapeType.Box, hx: 0.5, hy: 0.5, r: 0 },
+        { type: ShapeType.Box, hx: 0.8, hy: 0.3, r: 0 },
+        { type: ShapeType.Box, hx: 0.3, hy: 0.8, r: 0 },
+        { type: ShapeType.Circle, hx: 0, hy: 0, r: 0.5 },
+        { type: ShapeType.Circle, hx: 0, hy: 0, r: 0.8 },
+        { type: ShapeType.Polygon, hx: 0, hy: 0, r: 0, verts: [[-0.5, -0.5], [0.5, -0.5], [0, 0.5]] },
+        { type: ShapeType.Polygon, hx: 0, hy: 0, r: 0, verts: [[-0.6, -0.3], [0.6, -0.3], [0.6, 0.3], [-0.6, 0.3]] },
+        { type: ShapeType.Polygon, hx: 0, hy: 0, r: 0, verts: [[-0.4, -0.4], [0.4, -0.4], [0.4, 0.4], [-0.4, 0.4], [0, 0.6]] },
+      ]
+
+      for (let i = 0; i < N; i++) {
+        const angle = (i / N) * Math.PI * 2
+        const def = shapeDefs[i % shapeDefs.length]
+        buf.positionX[i] = Math.cos(angle) * radius
+        buf.positionY[i] = Math.sin(angle) * radius
+        buf.angle[i] = Math.random() * Math.PI * 2
+        buf.shapeType[i] = def.type
+        buf.flags[i] = BodyFlags.ACTIVE
+        buf.mass[i] = 1; buf.invMass[i] = 1
+        buf.inertia[i] = 0.1; buf.invInertia[i] = 10
+        buf.velocityX[i] = -Math.cos(angle) * 12 // faster
+        buf.velocityY[i] = -Math.sin(angle) * 12
+        buf.angularVel[i] = (Math.random() - 0.5) * 10
+
+        if (def.type === ShapeType.Box) {
+          buf.halfExtentX[i] = def.hx; buf.halfExtentY[i] = def.hy
+        } else if (def.type === ShapeType.Circle) {
+          buf.shapeRadius[i] = def.r
+        } else {
+          const v = def.verts!
+          let minVX = Infinity, maxVX = -Infinity, minVY = Infinity, maxVY = -Infinity
+          for (const [vx, vy] of v) {
+            if (vx < minVX) minVX = vx; if (vx > maxVX) maxVX = vx
+            if (vy < minVY) minVY = vy; if (vy > maxVY) maxVY = vy
+          }
+          buf.halfExtentX[i] = (maxVX - minVX) * 0.5
+          buf.halfExtentY[i] = (maxVY - minVY) * 0.5
+        }
+      }
+
+      const dt = 1 / 120
+      const config = { ...DEFAULT_WORLD_CONFIG, impulseAccumulation: true, blockSolver: false }
+
+      interface ShapeDiagnostic {
+        idx: number; type: string; minEdgeDist: number; minCornerDist: number
+        gjkPenetration: number; gjkNormalX: number; gjkNormalY: number
+        epaDepth: number; epaNormalX: number; epaNormalY: number
+        velocityX: number; velocityY: number; angularVel: number
+        collisionCount: number
+      }
+
+      const diagnostics: ShapeDiagnostic[] = Array.from({ length: N }, (_, i) => ({
+        idx: i, type: ['Box', 'Circle', 'Polygon'][buf.shapeType[i]],
+        minEdgeDist: Infinity, minCornerDist: Infinity,
+        gjkPenetration: 0, gjkNormalX: 0, gjkNormalY: 0,
+        epaDepth: 0, epaNormalX: 0, epaNormalY: 0,
+        velocityX: 0, velocityY: 0, angularVel: 0,
+        collisionCount: 0,
+      }))
+
+      let totalCollisions = 0
+      let totalPairs = 0
+      let maxPenetration = 0
+      let bvhNodeCount = 0
+
+      for (let step = 0; step < 120; step++) {
+        integrate(buf, N, dt, { x: 0, y: 0 })
+
+        // BVH tree diagnostics — rebuild each step
+        if (step === 0) {
+          for (let i = 0; i < N; i++) {
+            if (buf.flags[i] & BodyFlags.ACTIVE) tree.insert(i, buf)
+          }
+        } else {
+          tree.updateAll(buf)
+        }
+        const pairs = tree.queryPairs(buf)
+        totalPairs += pairs.length
+        if (step === 59) {
+          bvhNodeCount = tree.bodyCount
+        }
+
+        // Use SAP broadphase for collision detection
+        const manifolds = collide(buf, N, null, 'sap', 'gjk')
+        totalCollisions += manifolds.length
+
+        if (manifolds.length > 0) {
+          solveVelocity(buf, manifolds, config)
+          solvePosition(buf, manifolds, config)
+        }
+
+        // Per-body diagnostics
+        for (const m of manifolds) {
+          const aIdx = Number(m.bodyA)
+          const bIdx = Number(m.bodyB)
+          if (aIdx < N && diagnostics[aIdx]) {
+            diagnostics[aIdx].collisionCount++
+            diagnostics[aIdx].gjkPenetration = Math.max(diagnostics[aIdx].gjkPenetration, m.contacts[0].penetration)
+            diagnostics[aIdx].gjkNormalX = m.normal.x
+            diagnostics[aIdx].gjkNormalY = m.normal.y
+            diagnostics[aIdx].epaDepth = Math.max(diagnostics[aIdx].epaDepth, m.contacts[0].penetration)
+            if (m.contacts[0].penetration > maxPenetration) maxPenetration = m.contacts[0].penetration
+          }
+          if (bIdx < N && diagnostics[bIdx]) {
+            diagnostics[bIdx].collisionCount++
+            diagnostics[bIdx].gjkPenetration = Math.max(diagnostics[bIdx].gjkPenetration, m.contacts[0].penetration)
+            diagnostics[bIdx].gjkNormalX = m.normal.x
+            diagnostics[bIdx].gjkNormalY = m.normal.y
+            diagnostics[bIdx].epaDepth = Math.max(diagnostics[bIdx].epaDepth, m.contacts[0].penetration)
+            if (m.contacts[0].penetration > maxPenetration) maxPenetration = m.contacts[0].penetration
+          }
+        }
+
+        // Track minimum distances for each body
+        for (let i = 0; i < N; i++) {
+          if (!(buf.flags[i] & BodyFlags.ACTIVE)) continue
+          const cx = buf.positionX[i], cy = buf.positionY[i]
+          const distToCenter = Math.sqrt(cx * cx + cy * cy)
+
+          if (buf.shapeType[i] === ShapeType.Box) {
+            const cosA = Math.cos(buf.angle[i]), sinA = Math.sin(buf.angle[i])
+            const hx = buf.halfExtentX[i], hy = buf.halfExtentY[i]
+            const corners = [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]]
+            for (const [lx, ly] of corners) {
+              const wx = cosA * lx - sinA * ly + cx
+              const wy = sinA * lx + cosA * ly + cy
+              const d = Math.sqrt(wx * wx + wy * wy)
+              if (d < diagnostics[i].minCornerDist) diagnostics[i].minCornerDist = d
+            }
+            const edges = [[0, -hy], [hx, 0], [0, hy], [-hx, 0]]
+            for (const [lx, ly] of edges) {
+              const wx = cosA * lx - sinA * ly + cx
+              const wy = sinA * lx + cosA * ly + cy
+              const d = Math.sqrt(wx * wx + wy * wy)
+              if (d < diagnostics[i].minEdgeDist) diagnostics[i].minEdgeDist = d
+            }
+          } else if (buf.shapeType[i] === ShapeType.Circle) {
+            const r = buf.shapeRadius[i]
+            const edgeDist = Math.max(0, distToCenter - r)
+            if (edgeDist < diagnostics[i].minEdgeDist) diagnostics[i].minEdgeDist = edgeDist
+          }
+
+          diagnostics[i].velocityX = buf.velocityX[i]
+          diagnostics[i].velocityY = buf.velocityY[i]
+          diagnostics[i].angularVel = buf.angularVel[i]
+        }
+      }
+
+      // Report summary
+      console.log('=== MASTER COLLISION TEST DIAGNOSTICS ===')
+      console.log(`Bodies: ${N} | Steps: 120 | Total BVH pairs: ${totalPairs} | Total manifold contacts: ${totalCollisions}`)
+      console.log(`BVH nodes: ${bvhNodeCount} | Max penetration: ${maxPenetration.toFixed(6)}`)
+      console.log('')
+
+      for (const type of ['Box', 'Circle', 'Polygon']) {
+        const items = diagnostics.filter(d => d.type === type)
+        if (items.length === 0) continue
+        const avgCorner = items.reduce((s, d) => s + (d.minCornerDist === Infinity ? 0 : d.minCornerDist), 0) / items.length
+        const avgEdge = items.reduce((s, d) => s + (d.minEdgeDist === Infinity ? 0 : d.minEdgeDist), 0) / items.length
+        const avgColl = items.reduce((s, d) => s + d.collisionCount, 0) / items.length
+        const avgPen = items.reduce((s, d) => s + d.gjkPenetration, 0) / items.length
+        console.log(`${type} (${items.length} bodies): avgCornerDist=${avgCorner.toFixed(4)} avgEdgeDist=${avgEdge.toFixed(4)} avgCollisions=${avgColl.toFixed(1)} avgPenetration=${avgPen.toFixed(4)}`)
+      }
+
+      console.log('')
+      console.log('Per-body details:')
+      for (const d of diagnostics) {
+        const cornerStr = d.minCornerDist === Infinity ? 'N/A' : d.minCornerDist.toFixed(4)
+        const edgeStr = d.minEdgeDist === Infinity ? 'N/A' : d.minEdgeDist.toFixed(4)
+        console.log(`  #${d.idx} ${d.type}: cornerDist=${cornerStr} edgeDist=${edgeStr} pen=${d.gjkPenetration.toFixed(4)} collisions=${d.collisionCount} vel=(${d.velocityX.toFixed(2)},${d.velocityY.toFixed(2)}) angVel=${d.angularVel.toFixed(2)}`)
+      }
+
+      // Assertions
+      for (const d of diagnostics) {
+        expect(d.minCornerDist).toBeGreaterThanOrEqual(0)
+        expect(d.minEdgeDist).toBeGreaterThanOrEqual(0)
+        expect(d.gjkPenetration).toBeGreaterThanOrEqual(0)
+      }
+
+      expect(maxPenetration).toBeLessThan(2.0)
+      expect(totalCollisions).toBeGreaterThan(0)
     })
   })
 })

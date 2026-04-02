@@ -1,8 +1,10 @@
 node_modules/
 dist/
+!packages/core/dist/
 *.tsbuildinfo
 coverage/
 *.wasm
+!packages/core/dist/wasm/*.wasm
 target/
 pkg/
 .turbo/
@@ -10,3 +12,6 @@ pkg/
 Template-Repo/
 CLAUDE.md
 .opencode/
+
+# WASM build intermediates (not the final dist output)
+packages/core/wasm/build/

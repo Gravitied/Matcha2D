@@ -276,6 +276,9 @@ export async function loadWasmModule(): Promise<WasmInstance> {
         ptrVerticesX, ptrVerticesY,
         count,
       )
+
+      // Free temporary allocations immediately after the call
+      freeMany([ptrPosX, ptrPosY, ptrAngle, ptrHalfExtentX, ptrHalfExtentY, ptrShapeType, ptrShapeRadius, ptrShapeVertexCount, ptrVerticesX, ptrVerticesY])
     },
 
     step(worldHandle: number, dt: number, subSteps: number): void {
@@ -306,6 +309,9 @@ export async function loadWasmModule(): Promise<WasmInstance> {
       readFromHeap(buffers.velocityY, ptrVelY, count)
       readFromHeap(buffers.angle, ptrAngle, count)
       readFromHeap(buffers.angularVel, ptrAngVel, count)
+
+      // Free temporary allocations
+      freeMany([ptrPosX, ptrPosY, ptrVelX, ptrVelY, ptrAngle, ptrAngVel])
     },
 
     getContacts(worldHandle: number): ContactManifold[] {
@@ -353,6 +359,9 @@ export async function loadWasmModule(): Promise<WasmInstance> {
           }],
         })
       }
+
+      // Free temporary allocations
+      freeMany([ptrBodyA, ptrBodyB, ptrNx, ptrNy, ptrPx, ptrPy, ptrPen])
 
       return manifolds
     },

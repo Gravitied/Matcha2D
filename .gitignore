@@ -3,6 +3,7 @@ dist/
 *.tsbuildinfo
 coverage/
 *.wasm
+!packages/core/dist/wasm/*.wasm
 target/
 pkg/
 .turbo/

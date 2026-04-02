@@ -23,14 +23,19 @@ export class WasmPhysicsBackend implements PhysicsBackend {
   private wasm: WasmInstance | null = null
   private worldHandle: number = 0
   private initialized = false
+  private dt: number = 1 / 60
+  private subSteps: number = 4
 
   /**
    * Initialize the WASM backend.
    *
    * Loads the WASM module, creates a Box2D world with the given gravity,
    * and allocates internal data structures for up to maxBodies bodies.
+   * 
+   * @param config - World configuration including fixedTimestep and other settings
+   * @param subSteps - Number of sub-steps per simulation step (default: 4)
    */
-  async init(config: WorldConfig): Promise<void> {
+  async init(config: WorldConfig, subSteps?: number): Promise<void> {
     if (this.initialized) return
 
     this.wasm = await loadWasmModule()
@@ -47,6 +52,10 @@ export class WasmPhysicsBackend implements PhysicsBackend {
         'Check that the WASM module was built correctly.',
       )
     }
+
+    // Store timestep and subSteps from config
+    this.dt = config.fixedTimestep
+    this.subSteps = subSteps ?? 4
 
     this.initialized = true
   }
@@ -117,7 +126,8 @@ export class WasmPhysicsBackend implements PhysicsBackend {
     this.wasm.syncShapes(this.worldHandle, buffers, count)
 
     // Run one simulation step (Box2D handles broadphase → narrowphase → solve → integrate)
-    this.wasm.step(this.worldHandle, 1 / 60, 4)
+    // Uses dt from config and configurable subSteps
+    this.wasm.step(this.worldHandle, this.dt, this.subSteps)
 
     // Read updated body state back from WASM
     this.wasm.readBodies(this.worldHandle, buffers, count)

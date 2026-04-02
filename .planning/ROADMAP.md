@@ -11,7 +11,7 @@
 - WASM-05: Build pipeline produces .wasm + .js glue, integrated into npm build
 
 **Plans:**
-3/4 plans complete
+4/4 plans complete
 - [x] 01-wasm-core-01-PLAN.md — WASM build pipeline and C bridge API ✅
 - [x] 01-wasm-core-02-PLAN.md — TypeScript WASM wrapper and PhysicsBackend ✅
 - [x] 01-wasm-core-03-PLAN.md — Integration with World simulation loop ✅

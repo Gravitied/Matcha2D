@@ -21,3 +21,8 @@ export { Polytope } from './collision/polytope.js'
 
 // Solver
 export { solveVelocity, solvePosition, integrate } from './solver/sequential-impulse.js'
+
+// WASM
+export { WasmPhysicsBackend } from './wasm/WasmPhysicsBackend.js'
+export { loadWasmModule } from './wasm/WasmModule.js'
+export type { WasmInstance } from './wasm/WasmModule.js'

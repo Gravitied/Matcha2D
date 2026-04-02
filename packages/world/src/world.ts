@@ -1,6 +1,6 @@
 import type { MatchaBuffers, WorldConfig, PhysicsBackend, BodyHandle, ShapeType, CollisionCallbacks } from '@matcha2d/types'
 import { createBuffers, DEFAULT_WORLD_CONFIG, BodyFlags, BodyType } from '@matcha2d/types'
-import { integrate, solveVelocity, solvePosition, collide, DynamicTree, ContactTracker } from '@matcha2d/core'
+import { integrate, solveVelocity, solvePosition, collide, DynamicTree, ContactTracker, WasmPhysicsBackend } from '@matcha2d/core'
 
 export interface BodyDef {
   positionX?: number
@@ -27,12 +27,50 @@ export class World {
   private _contactTracker: ContactTracker
   private _accumulator = 0
   private _callbacks: CollisionCallbacks | null = null
+  private _backend: PhysicsBackend | null = null
+  private _wasmBackend: WasmPhysicsBackend | null = null
 
   constructor(config: Partial<WorldConfig> = {}) {
     this.config = { ...DEFAULT_WORLD_CONFIG, ...config }
     this.buffers = createBuffers(this.config.maxBodies)
     this._tree = new DynamicTree()
     this._contactTracker = new ContactTracker()
+  }
+
+  /**
+   * Create a World using the TypeScript physics backend (default).
+   * Uses the built-in collide/solve/integrate functions from @matcha2d/core.
+   */
+  static createWithTS(config: Partial<WorldConfig> = {}): World {
+    return new World(config)
+    // TS backend uses standalone functions — no backend instance needed
+  }
+
+  /**
+   * Create a World using the WASM physics backend.
+   *
+   * The WASM backend must be initialized before the first simulation step.
+   * Call `await world.initWasmBackend()` after creating the world.
+   *
+   * Example:
+   *   const world = await World.createWithWasm({ gravity: { x: 0, y: -9.81 } })
+   *   world.step(1 / 60)
+   */
+  static async createWithWasm(config: Partial<WorldConfig> = {}): Promise<World> {
+    const world = new World(config)
+    world._wasmBackend = new WasmPhysicsBackend()
+    await world._wasmBackend.init(world.config)
+    world._backend = world._wasmBackend
+    return world
+  }
+
+  /**
+   * Create a World with a custom PhysicsBackend implementation.
+   */
+  static createWithBackend(backend: PhysicsBackend, config: Partial<WorldConfig> = {}): World {
+    const world = new World(config)
+    world._backend = backend
+    return world
   }
 
   get bodyCount(): number {
@@ -124,21 +162,41 @@ export class World {
   }
 
   private _physicsStep(dt: number): void {
-    integrate(this.buffers, this._bodyCount, dt, this.config.gravity)
+    if (this._backend) {
+      // Backend-driven simulation (WASM or custom backend)
+      // The backend handles the full pipeline internally.
+      // collide() returns manifolds for event reporting.
+      // solveVelocity/integrate/solvePosition are no-ops in WASM mode
+      // (Box2D handles everything during step).
+      const manifolds = this._backend.collide(
+        this.buffers,
+        this._bodyCount,
+        this.config.broadphaseMethod,
+        this.config.narrowphaseMethod,
+      )
+      this._backend.solveVelocity(this.buffers, manifolds, this.config)
+      this._backend.integrate(this.buffers, this._bodyCount, dt, this.config.gravity)
+      this._backend.solvePosition(this.buffers, manifolds, this.config)
 
-    this._tree.updateAll(this.buffers)
+      this._contactTracker.update(manifolds, this.config)
+    } else {
+      // TypeScript standalone simulation (default)
+      integrate(this.buffers, this._bodyCount, dt, this.config.gravity)
 
-    const manifolds = collide(
-      this.buffers,
-      this._bodyCount,
-      this._tree,
-      this.config.broadphaseMethod,
-      this.config.narrowphaseMethod,
-    )
+      this._tree.updateAll(this.buffers)
 
-    solveVelocity(this.buffers, manifolds, this.config)
-    solvePosition(this.buffers, manifolds, this.config)
+      const manifolds = collide(
+        this.buffers,
+        this._bodyCount,
+        this._tree,
+        this.config.broadphaseMethod,
+        this.config.narrowphaseMethod,
+      )
 
-    this._contactTracker.update(manifolds, this.config)
+      solveVelocity(this.buffers, manifolds, this.config)
+      solvePosition(this.buffers, manifolds, this.config)
+
+      this._contactTracker.update(manifolds, this.config)
+    }
   }
 }

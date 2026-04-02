@@ -47,13 +47,13 @@ if (-not (Test-Path $DistDir)) {
   New-Item -ItemType Directory -Path $DistDir | Out-Null
 }
 
-if (Test-Path (Join-Path $BuildDir "matcha2d_wasm.wasm")) {
-  Copy-Item (Join-Path $BuildDir "matcha2d_wasm.wasm") $DistDir -Force
-  Write-Host "  -> $(Join-Path $DistDir matcha2d_wasm.wasm)"
+if (Test-Path (Join-Path $BuildDir "box2d.wasm")) {
+  Copy-Item (Join-Path $BuildDir "box2d.wasm") $DistDir -Force
+  Write-Host "  -> $(Join-Path $DistDir box2d.wasm)"
 }
-if (Test-Path (Join-Path $BuildDir "matcha2d_wasm.js")) {
-  Copy-Item (Join-Path $BuildDir "matcha2d_wasm.js") $DistDir -Force
-  Write-Host "  -> $(Join-Path $DistDir matcha2d_wasm.js)"
+if (Test-Path (Join-Path $BuildDir "box2d.js")) {
+  Copy-Item (Join-Path $BuildDir "box2d.js") $DistDir -Force
+  Write-Host "  -> $(Join-Path $DistDir box2d.js)"
 }
 
 Write-Host "Build complete!" -ForegroundColor Green

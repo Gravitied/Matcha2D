@@ -98,20 +98,20 @@ set(EM_LINK_FLAGS
 add_compile_definitions(BOX2D_VALIDATE=0)
 
 # ── Build the WASM module ─────────────────────────────────────────────────────
-add_executable(matcha2d_wasm ${ALL_SOURCES})
+add_executable(box2d ${ALL_SOURCES})
 
-target_include_directories(matcha2d_wasm
+target_include_directories(box2d
   PRIVATE
     ${BOX2D_INC_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_compile_options(matcha2d_wasm PRIVATE
+target_compile_options(box2d PRIVATE
   -msimd128
   -msse2
 )
 
-set_target_properties(matcha2d_wasm PROPERTIES
+set_target_properties(box2d PROPERTIES
   SUFFIX ".js"
   LINK_FLAGS "${EM_LINK_FLAGS}"
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build"

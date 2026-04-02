@@ -37,13 +37,13 @@ cmake --build . --config "${BUILD_TYPE}"
 # Copy output to dist
 echo "Copying output to ${DIST_DIR}..."
 mkdir -p "${DIST_DIR}"
-if [ -f "${BUILD_DIR}/matcha2d_wasm.wasm" ]; then
-  cp "${BUILD_DIR}/matcha2d_wasm.wasm" "${DIST_DIR}/"
-  echo "  -> ${DIST_DIR}/matcha2d_wasm.wasm"
+if [ -f "${BUILD_DIR}/box2d.wasm" ]; then
+  cp "${BUILD_DIR}/box2d.wasm" "${DIST_DIR}/"
+  echo "  -> ${DIST_DIR}/box2d.wasm"
 fi
-if [ -f "${BUILD_DIR}/matcha2d_wasm.js" ]; then
-  cp "${BUILD_DIR}/matcha2d_wasm.js" "${DIST_DIR}/"
-  echo "  -> ${DIST_DIR}/matcha2d_wasm.js"
+if [ -f "${BUILD_DIR}/box2d.js" ]; then
+  cp "${BUILD_DIR}/box2d.js" "${DIST_DIR}/"
+  echo "  -> ${DIST_DIR}/box2d.js"
 fi
 
 echo "Build complete!"

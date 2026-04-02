@@ -8,3 +8,5 @@ pkg/
 .turbo/
 .claude/
 Template-Repo/
+CLAUDE.md
+.opencode/

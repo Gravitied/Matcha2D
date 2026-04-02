@@ -11,7 +11,7 @@
 - WASM-05: Build pipeline produces .wasm + .js glue, integrated into npm build
 
 **Plans:**
-- [ ] 01-wasm-core-01-PLAN.md — Emscripten build pipeline for Box2D
+1/3 plans executed
 - [ ] 01-wasm-core-02-PLAN.md — WASM C API bridge for SoA buffers
 - [ ] 01-wasm-core-03-PLAN.md — TypeScript wrapper implementing PhysicsBackend
 - [ ] 01-wasm-core-04-PLAN.md — Integration with World + build pipeline

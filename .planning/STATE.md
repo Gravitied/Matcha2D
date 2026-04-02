@@ -1,7 +1,23 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+current_plan: 2 of 3
+status: executing
+last_updated: "2026-04-02T09:56:06.590Z"
+progress:
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 3
+  completed_plans: 1
+---
+
 # Matcha2D - Phase 01: WASM Physics Core
 
 ## Position
-Starting fresh — porting Box2D C engine to WASM as the physics core backend.
+- **Current Plan:** 2 of 3
+- **Status:** In Progress
+- **Last session:** 2026-04-02T09:56:06.587Z
 
 ## Goal
 Replace the TypeScript physics core with a WASM-compiled Box2D engine that conforms to the existing `PhysicsBackend` interface, providing production-grade 2D physics.
@@ -12,14 +28,17 @@ Replace the TypeScript physics core with a WASM-compiled Box2D engine that confo
 - Must conform to existing `@matcha2d/types` contract (buffer layout, PhysicsBackend interface)
 - TypeScript wrappers in `packages/core/src/wasm/` will bridge WASM to the PhysicsBackend interface
 - Keep existing TypeScript implementations as fallback during transition
+- Used add_executable (not add_library) for Emscripten WASM output
+- Shape recreation on type change rather than incremental updates
+- Contact query via body iteration using b2Body_GetContactData
 
 ## Blockers
-- Emscripten SDK must be installed on the system
-- WASM module needs to read/write MatchaBuffers (SoA format) which differs from Box2D's internal data model
+- Emscripten SDK must be installed on the system to build WASM module
+
+## Completed Plans
+- **Plan 01:** WASM build pipeline and C bridge API (01-wasm-core-01-SUMMARY.md) — Complete
 
 ## Pending Todos
-- Set up Emscripten build pipeline for Box2D
-- Create WASM module with C API that accepts SoA buffer pointers
 - Write TypeScript bindings (glue code) that implement PhysicsBackend
 - Integrate WASM backend into the World simulation loop
 - Test with existing test suite

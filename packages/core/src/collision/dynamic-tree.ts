@@ -438,11 +438,15 @@ export class DynamicTree {
     }
 
     if (a.isLeaf && b.isLeaf) {
-      // Both leaves — filter static-static and sleeping-sleeping pairs.
+      // Both leaves — filter inactive, static-static, and sleeping-sleeping pairs.
       const i = a.body
       const j = b.body
       const fi = buffers.flags[i]
       const fj = buffers.flags[j]
+
+      // Skip if either body is inactive
+      if (!(fi & BodyFlags.ACTIVE) || !(fj & BodyFlags.ACTIVE)) return
+
       const iStatic = (fi & BodyFlags.STATIC) !== 0
       const jStatic = (fj & BodyFlags.STATIC) !== 0
       const iSleeping = (fi & BodyFlags.SLEEPING) !== 0
@@ -475,9 +479,12 @@ export class DynamicTree {
     }
   }
 
-  /** Generate a unique key for a pair of node indices. */
+  /** Generate a unique key for a pair of node indices using Szudzik's bijective pairing. */
   private pairKey(a: number, b: number): number {
-    return a < b ? (a * 73856093) ^ (b * 19349663) : (b * 73856093) ^ (a * 19349663)
+    const lo = a < b ? a : b
+    const hi = a < b ? b : a
+    // Szudzik's pairing: bijective for non-negative integers, order-independent via sort
+    return hi * hi + hi + lo
   }
 
   /** Allocate a new node from the pool. */

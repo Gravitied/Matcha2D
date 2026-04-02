@@ -11,6 +11,7 @@ const GJK_TOLERANCE = 1e-10
 const EPA_MAX_ITERATIONS = 30
 const EPA_TOLERANCE = 1e-4
 const TANGENT_MIN_LENGTH = 0.01
+const FALLBACK_PENETRATION_MIN = 0.001
 const CONTACT_MERGE_THRESHOLD = 1.415 * TANGENT_MIN_LENGTH
 
 interface SupportResult {
@@ -722,7 +723,11 @@ export function gjkNarrowphase(
     if (typeA === ShapeType.Box && typeB === ShapeType.Box) {
       const penX = (buffers.halfExtentX[a] + buffers.halfExtentX[b]) - Math.abs(dx)
       const penY = (buffers.halfExtentY[a] + buffers.halfExtentY[b]) - Math.abs(dy)
-      penetration = Math.min(Math.max(penX, 0.001), Math.max(penY, 0.001))
+      if (penX > 0 && penY > 0) {
+        penetration = Math.min(penX, penY)
+      } else {
+        penetration = Math.max(penX, penY, FALLBACK_PENETRATION_MIN)
+      }
     } else if (typeA === ShapeType.Circle && typeB === ShapeType.Circle) {
       penetration = buffers.shapeRadius[a] + buffers.shapeRadius[b] - len
     } else {

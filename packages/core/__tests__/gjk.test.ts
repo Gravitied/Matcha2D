@@ -280,6 +280,20 @@ describe('GJK narrowphase', () => {
       const manifolds = gjkNarrowphase(buf, [{ a: 0 as any, b: 1 as any }])
       expect(manifolds).toHaveLength(0)
     })
+
+    it('fallback penetration picks minimum SAT axis for overlapping box pair', () => {
+      // Box A: half-extents (2, 2), Box B: half-extents (2, 2), offset (3.5, 0)
+      // X-axis overlap = (2+2) - 3.5 = 0.5, Y-axis overlap = (2+2) - 0 = 4.0
+      // SAT minimum axis = X = 0.5 — correct penetration should be < 1.0
+      const buf = makeBuffers()
+      placeBox(buf, 0, 0, 0, 2, 2)
+      placeBox(buf, 1, 3.5, 0, 2, 2)
+      const manifolds = gjkNarrowphase(buf, [{ a: 0 as any, b: 1 as any }])
+      expect(manifolds).toHaveLength(1)
+      // X-axis overlap is 0.5, Y-axis overlap is 4.0 — SAT should pick X = 0.5
+      expect(manifolds[0].contacts[0].penetration).toBeGreaterThan(0)
+      expect(manifolds[0].contacts[0].penetration).toBeLessThan(1.0)
+    })
   })
 
   describe('manifold quality', () => {

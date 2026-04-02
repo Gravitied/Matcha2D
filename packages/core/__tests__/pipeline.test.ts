@@ -298,4 +298,43 @@ describe('collision pipeline', () => {
       }
     })
   })
+
+  describe('block solver', () => {
+    it('resolves 2-contact manifold without NaN velocities', () => {
+      const buf = createBuffers(4)
+      // Body 0: static floor
+      buf.positionX[0] = 0; buf.positionY[0] = -1
+      buf.halfExtentX[0] = 5; buf.halfExtentY[0] = 0.5
+      buf.shapeType[0] = ShapeType.Box
+      buf.flags[0] = BodyFlags.ACTIVE | BodyFlags.STATIC
+      buf.mass[0] = 0; buf.invMass[0] = 0; buf.inertia[0] = 0; buf.invInertia[0] = 0
+
+      // Body 1: dynamic box falling
+      buf.positionX[1] = 0; buf.positionY[1] = 0
+      buf.halfExtentX[1] = 0.5; buf.halfExtentY[1] = 0.5
+      buf.shapeType[1] = ShapeType.Box
+      buf.flags[1] = BodyFlags.ACTIVE
+      buf.mass[1] = 1; buf.invMass[1] = 1; buf.inertia[1] = 0.1; buf.invInertia[1] = 10
+      buf.velocityY[1] = -2
+
+      const manifold: ContactManifold = {
+        bodyA: 0 as any,
+        bodyB: 1 as any,
+        normal: { x: 0, y: 1 },
+        contacts: [
+          { localA: { x: -0.5, y: 0.5 }, localB: { x: -0.5, y: -0.5 }, penetration: 0.01, idA: 0, idB: 0 },
+          { localA: { x: 0.5, y: 0.5 }, localB: { x: 0.5, y: -0.5 }, penetration: 0.01, idA: 1, idB: 1 },
+        ],
+      }
+
+      const config = { ...DEFAULT_WORLD_CONFIG, blockSolver: true, impulseAccumulation: true }
+      solveVelocity(buf, [manifold], config)
+
+      expect(isNaN(buf.velocityX[1])).toBe(false)
+      expect(isNaN(buf.velocityY[1])).toBe(false)
+      expect(isNaN(buf.angularVel[1])).toBe(false)
+      // After resolution, downward velocity should be reduced
+      expect(buf.velocityY[1]).toBeGreaterThanOrEqual(-2.1)
+    })
+  })
 })

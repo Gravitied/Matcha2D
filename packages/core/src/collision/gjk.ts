@@ -7,9 +7,9 @@ import { Simplex } from './simplex.js'
 import { Polytope } from './polytope.js'
 
 const GJK_MAX_ITERATIONS = 30
-const GJK_TOLERANCE = 1e-10
-const EPA_MAX_ITERATIONS = 30
-const EPA_TOLERANCE = 1e-6
+const GJK_TOLERANCE = 1e-12
+const EPA_MAX_ITERATIONS = 50
+const EPA_TOLERANCE = 1e-8
 const TANGENT_MIN_LENGTH = 0.01
 const FALLBACK_PENETRATION_MIN = 0.001
 const CONTACT_MERGE_THRESHOLD = 1.415 * TANGENT_MIN_LENGTH
@@ -209,9 +209,22 @@ function gjk(
       dirX, dirY,
     )
 
+    // Template termination condition (detection.ts line 106):
+    // dir.length > dir.normalized().dot(supportPoint - closest.result)
+    // This checks if the new support point made enough progress toward the origin
     const supportProj = (nx * dirX + ny * dirY) / dirLen
+    const deltaProj = ((nx - closest.resultX) * dirX + (ny - closest.resultY) * dirY) / dirLen
+    if (dirLen > deltaProj) {
+      return { collided: false, simplex }
+    }
 
-    if (supportProj < 0) {
+    // Additional safety: reject if support point is behind the origin
+    if (supportProj < -1e-6) {
+      return { collided: false, simplex }
+    }
+
+    // Additional safety: reject if support point is behind the origin
+    if (supportProj < -1e-6) {
       return { collided: false, simplex }
     }
 
@@ -599,6 +612,26 @@ export function gjkNarrowphase(
     )
 
     if (!gjkResult.collided) continue
+
+    // SAT verification for box-box to catch GJK false positives
+    if (typeA === ShapeType.Box && typeB === ShapeType.Box) {
+      const angleA = buffers.angle[a]
+      const angleB = buffers.angle[b]
+      const dx = buffers.positionX[b] - buffers.positionX[a]
+      const dy = buffers.positionY[b] - buffers.positionY[a]
+      const cosA = Math.cos(angleA), sinA = Math.sin(angleA)
+      const cosB = Math.cos(angleB), sinB = Math.sin(angleB)
+      const axes: [number, number][] = [[cosA, sinA], [-sinA, cosA], [cosB, sinB], [-sinB, cosB]]
+      let overlapping = true
+      for (const [ax, ay] of axes) {
+        const rA = Math.abs(buffers.halfExtentX[a] * (ax * cosA + ay * sinA)) +
+                   Math.abs(buffers.halfExtentY[a] * (ax * (-sinA) + ay * cosA))
+        const rB = Math.abs(buffers.halfExtentX[b] * (ax * cosB + ay * sinB)) +
+                   Math.abs(buffers.halfExtentY[b] * (ax * (-sinB) + ay * cosB))
+        if (rA + rB <= Math.abs(dx * ax + dy * ay)) { overlapping = false; break }
+      }
+      if (!overlapping) continue
+    }
 
     let simplex = gjkResult.simplex
 

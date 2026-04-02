@@ -296,6 +296,40 @@ describe('GJK narrowphase', () => {
     })
   })
 
+  describe('circle-circle manifold local coordinates', () => {
+    it('localA is at the contact point in body-local space (angle=0 case)', () => {
+      // Circle A at origin r=1, Circle B at (1.5, 0) r=1
+      // Contact point is at (1, 0) in world space
+      // localA = inverse-rotate world offset by angleA=0 = (1, 0)
+      const buf = makeBuffers()
+      placeCircle(buf, 0, 0, 0, 1)
+      placeCircle(buf, 1, 1.5, 0, 1)
+      const manifolds = gjkNarrowphase(buf, [{ a: 0 as any, b: 1 as any }])
+      expect(manifolds).toHaveLength(1)
+      const lA = manifolds[0].contacts[0].localA
+      expect(lA.x).toBeCloseTo(1, 3)
+      expect(lA.y).toBeCloseTo(0, 3)
+    })
+
+    it('localA is correct when circle A has a non-zero angle', () => {
+      // Circle A at origin r=1, angleA=PI/2
+      // Contact point at world (1, 0), posA=(0,0)
+      // World offset from A = (1, 0)
+      // Rotate by -PI/2 (transpose of PI/2 rotation matrix):
+      //   mat2(PI/2) = [[0,-1],[1,0]], transpose = [[0,1],[-1,0]]
+      //   applied to (1,0) = (0,-1)
+      const buf = makeBuffers()
+      placeCircle(buf, 0, 0, 0, 1)
+      buf.angle[0] = Math.PI / 2
+      placeCircle(buf, 1, 1.5, 0, 1)
+      const manifolds = gjkNarrowphase(buf, [{ a: 0 as any, b: 1 as any }])
+      expect(manifolds).toHaveLength(1)
+      const lA = manifolds[0].contacts[0].localA
+      expect(lA.x).toBeCloseTo(0, 3)
+      expect(lA.y).toBeCloseTo(-1, 3)
+    })
+  })
+
   describe('manifold quality', () => {
     it('provides unit-length contact normal', () => {
       const buf = makeBuffers()

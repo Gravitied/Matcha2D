@@ -8,10 +8,16 @@ export {
 export { mat2FromAngle, mat2MulVec, mat2TransposeMulVec } from './math/mat2.js'
 
 // Collision
-export { aabbOverlap, aabbMerge, aabbContains, aabbArea, aabbPerimeter } from './collision/aabb.js'
-export { broadphase } from './collision/broadphase.js'
+export { aabbOverlap, aabbMerge, aabbContains, aabbArea, aabbPerimeter, computeBodyAABB } from './collision/aabb.js'
+export { broadphase, broadphaseBVH, DynamicTree } from './collision/broadphase.js'
 export { narrowphase } from './collision/narrowphase.js'
 export { gjkNarrowphase } from './collision/gjk.js'
+export { collide, narrowphaseDispatch } from './collision/pipeline.js'
+export { registerShapeHandler, getShapeHandler } from './collision/shapes.js'
+export type { ShapeHandler } from './collision/shapes.js'
+export { ContactTracker } from './collision/contact-tracker.js'
+export { Simplex } from './collision/simplex.js'
+export { Polytope } from './collision/polytope.js'
 
 // Solver
-export { solveVelocity, solvePosition } from './solver/sequential-impulse.js'
+export { solveVelocity, solvePosition, integrate } from './solver/sequential-impulse.js'

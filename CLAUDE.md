@@ -15,6 +15,9 @@ npm run clean        # Remove all dist/ folders
 npm run build -w packages/core
 npm test -w packages/core
 ```
+## Template
+Template-Repo folder : C:\Users\winsi\Projects\Matcha2D\Template-Repo
+Use the Template-Repo folder to reference all algorithms and code as the working version. The Template-Repo should be treated as a perfect project and all errors should be assumed to be something elses fault if the fault is assumed to be the Template-Repos. Do not change any code inside of the template repo only use it for reference.
 
 ## Architecture
 
@@ -146,11 +149,20 @@ renderAlpha = accumulator / fixedStep  // interpolation factor
 - **No runtime dependencies** — zero mandatory deps
 - Use `import type` for type-only imports (enforced by `verbatimModuleSyntax`)
 
+### API QoL
+- **Ease of Use API** — The APIs core design should be meant for ease of use and customizability.
+- All terms functions and syntax should be simple yet customizable enough for unique management of scenes.
+- The focus is easy user experience, yet detailed for more familar users that want to delve deeper.
+
 ### Performance Rules
 - Hot-path math uses flat typed arrays (SoA), not objects
 - Precompute inverse values (`invMass`, `invInertia`) at body creation, not per-frame
 - Avoid allocations in tight loops — pass output arrays + indices instead of returning new objects
 - Vec2 array functions signature: `(outX, outY, outIdx, aX, aY, aIdx, ...)`
+
+### Code Modularity
+- Any code/function that can be modular, should always be modular to support easy development and integration for later features.
+
 
 ### Testing
 - Tests go in `__tests__/` directories within each package
@@ -174,3 +186,4 @@ renderAlpha = accumulator / fixedStep  // interpolation factor
 - **TypeScript** ^5.7 — type-checking and declarations
 - **tsup** ^8.3 — ESM bundling + DTS generation (wraps esbuild)
 - **vitest** ^3.0 — test runner
+- **webGL** for render engine.

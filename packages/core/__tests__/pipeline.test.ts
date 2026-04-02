@@ -337,4 +337,100 @@ describe('collision pipeline', () => {
       expect(buf.velocityY[1]).toBeGreaterThanOrEqual(-2.1)
     })
   })
+
+  describe('fast rotated corner collision accuracy', () => {
+    it('rotated diamond corner should not penetrate horizontal square center', () => {
+      const buf = createBuffers(8)
+
+      // Body 0: static horizontal square at origin, half-extent 1
+      buf.positionX[0] = 0; buf.positionY[0] = 0
+      buf.halfExtentX[0] = 1; buf.halfExtentY[0] = 1
+      buf.shapeType[0] = ShapeType.Box
+      buf.flags[0] = BodyFlags.ACTIVE | BodyFlags.STATIC
+      buf.invMass[0] = 0; buf.invInertia[0] = 0
+
+      // Body 1: dynamic square rotated 45 degrees (diamond shape), half-extent 0.5
+      // Starting far above, aimed at the center of the static square
+      const angle45 = Math.PI / 4
+      buf.positionX[1] = 0; buf.positionY[1] = 5
+      buf.halfExtentX[1] = 0.5; buf.halfExtentY[1] = 0.5
+      buf.shapeType[1] = ShapeType.Box
+      buf.angle[1] = angle45
+      buf.flags[1] = BodyFlags.ACTIVE
+      buf.mass[1] = 1; buf.invMass[1] = 1; buf.inertia[1] = 0.1; buf.invInertia[1] = 10
+      // Fast downward velocity
+      buf.velocityX[1] = 0; buf.velocityY[1] = -20
+
+      const dt = 1 / 120 // smaller timestep for fast movement
+      const config = { ...DEFAULT_WORLD_CONFIG, impulseAccumulation: true, blockSolver: false }
+
+      let minDistToCenter = Infinity
+      for (let step = 0; step < 200; step++) {
+        integrate(buf, 2, dt, { x: 0, y: 0 }) // no gravity
+        const manifolds = collide(buf, 2, null, 'sap', 'gjk')
+        if (manifolds.length > 0) {
+          solveVelocity(buf, manifolds, config)
+          solvePosition(buf, manifolds, config)
+        }
+
+        // Track how close the diamond's corner gets to the static square's center
+        // The diamond's bottom corner in world space:
+        const cosA = Math.cos(buf.angle[1])
+        const sinA = Math.sin(buf.angle[1])
+        // Corner at local (0, -0.5) — the bottom corner of the diamond
+        const cornerLocalX = 0
+        const cornerLocalY = -0.5
+        const cornerWorldX = cosA * cornerLocalX - sinA * cornerLocalY + buf.positionX[1]
+        const cornerWorldY = sinA * cornerLocalX + cosA * cornerLocalY + buf.positionY[1]
+        const distToCenter = Math.sqrt(cornerWorldX * cornerWorldX + cornerWorldY * cornerWorldY)
+        if (distToCenter < minDistToCenter) {
+          minDistToCenter = distToCenter
+        }
+      }
+
+      // The static square's surface is at distance 1.0 from center (half-extent = 1)
+      // The corner should NOT get closer than 1.0 (the surface) — if it does, it penetrated
+      // Allow very small tolerance for numerical precision
+      console.log(`Min dist to center: ${minDistToCenter.toFixed(6)}`)
+      expect(minDistToCenter).toBeGreaterThanOrEqual(0.98)
+    })
+
+    it('fast horizontal square should not tunnel through thin vertical wall', () => {
+      const buf = createBuffers(8)
+
+      // Body 0: thin vertical wall
+      buf.positionX[0] = 0; buf.positionY[0] = 0
+      buf.halfExtentX[0] = 0.1; buf.halfExtentY[0] = 2
+      buf.shapeType[0] = ShapeType.Box
+      buf.flags[0] = BodyFlags.ACTIVE | BodyFlags.STATIC
+      buf.invMass[0] = 0; buf.invInertia[0] = 0
+
+      // Body 1: horizontal square starting left of wall, moving fast right
+      buf.positionX[1] = -5; buf.positionY[1] = 0
+      buf.halfExtentX[1] = 0.5; buf.halfExtentY[1] = 0.5
+      buf.shapeType[1] = ShapeType.Box
+      buf.flags[1] = BodyFlags.ACTIVE
+      buf.mass[1] = 1; buf.invMass[1] = 1; buf.inertia[1] = 0.1; buf.invInertia[1] = 10
+      buf.velocityX[1] = 30; buf.velocityY[1] = 0 // very fast
+
+      const dt = 1 / 120
+      const config = { ...DEFAULT_WORLD_CONFIG, impulseAccumulation: true, blockSolver: false }
+
+      let crossedWall = false
+      for (let step = 0; step < 200; step++) {
+        integrate(buf, 2, dt, { x: 0, y: 0 })
+        const manifolds = collide(buf, 2, null, 'sap', 'gjk')
+        if (manifolds.length > 0) {
+          solveVelocity(buf, manifolds, config)
+          solvePosition(buf, manifolds, config)
+        }
+        if (buf.positionX[1] > 0.6) {
+          crossedWall = true
+        }
+      }
+
+      // The square should NOT have crossed the wall (or at least should have bounced)
+      expect(crossedWall).toBe(false)
+    })
+  })
 })

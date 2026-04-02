@@ -9,10 +9,11 @@ import { Polytope } from './polytope.js'
 const GJK_MAX_ITERATIONS = 30
 const GJK_TOLERANCE = 1e-10
 const EPA_MAX_ITERATIONS = 30
-const EPA_TOLERANCE = 1e-4
+const EPA_TOLERANCE = 1e-6
 const TANGENT_MIN_LENGTH = 0.01
 const FALLBACK_PENETRATION_MIN = 0.001
 const CONTACT_MERGE_THRESHOLD = 1.415 * TANGENT_MIN_LENGTH
+const EPA_DEPTH_CAP = 0.5
 
 interface SupportResult {
   x: number
@@ -196,6 +197,11 @@ function gjk(
     dirX = -closest.resultX
     dirY = -closest.resultY
 
+    const dirLen = length(dirX, dirY)
+    if (dirLen < 1e-10) {
+      return { collided: true, simplex }
+    }
+
     const [nx, ny] = minkowskiSupport(
       vertsAX, vertsAY, countA, typeA,
       vertsBX, vertsBY, countB, typeB,
@@ -203,17 +209,9 @@ function gjk(
       dirX, dirY,
     )
 
-    const dirLen = length(dirX, dirY)
-    if (dirLen < 1e-10) {
-      return { collided: true, simplex }
-    }
-
-    const closestDist = Math.sqrt(distSq)
-
     const supportProj = (nx * dirX + ny * dirY) / dirLen
-    const closestProj = closestDist
 
-    if (closestProj - supportProj < GJK_TOLERANCE) {
+    if (supportProj < 0) {
       return { collided: false, simplex }
     }
 
@@ -282,7 +280,7 @@ function epa(
   }
 
   return {
-    penetrationDepth: closestEdge.distance,
+    penetrationDepth: Math.max(closestEdge.distance, 0),
     contactNormalX: closestEdge.normalX,
     contactNormalY: closestEdge.normalY,
   }
@@ -298,7 +296,7 @@ function clipEdge(
   edge: { p1x: number; p1y: number; p2x: number; p2y: number; id1: number; id2: number },
   px: number, py: number,
   dirx: number, diry: number,
-  _remove: boolean,
+  remove: boolean = false,
 ): void {
   const d1 = dot(edge.p1x - px, edge.p1y - py, dirx, diry)
   const d2 = dot(edge.p2x - px, edge.p2y - py, dirx, diry)
@@ -309,13 +307,25 @@ function clipEdge(
   if (per < 1e-10) return
 
   if (d1 < 0) {
-    const t = -d1 / per
-    edge.p1x = edge.p1x + (edge.p2x - edge.p1x) * t
-    edge.p1y = edge.p1y + (edge.p2y - edge.p1y) * t
+    if (remove) {
+      edge.p1x = edge.p2x
+      edge.p1y = edge.p2y
+      edge.id1 = edge.id2
+    } else {
+      const t = -d1 / per
+      edge.p1x = edge.p1x + (edge.p2x - edge.p1x) * t
+      edge.p1y = edge.p1y + (edge.p2y - edge.p1y) * t
+    }
   } else if (d2 < 0) {
-    const t = -d2 / per
-    edge.p2x = edge.p2x + (edge.p1x - edge.p2x) * t
-    edge.p2y = edge.p2y + (edge.p1y - edge.p2y) * t
+    if (remove) {
+      edge.p2x = edge.p1x
+      edge.p2y = edge.p1y
+      edge.id2 = edge.id1
+    } else {
+      const t = -d2 / per
+      edge.p2x = edge.p2x + (edge.p1x - edge.p2x) * t
+      edge.p2y = edge.p2y + (edge.p1y - edge.p2y) * t
+    }
   }
 }
 
@@ -687,13 +697,81 @@ export function gjkNarrowphase(
     )
 
     if (epaResult && epaResult.penetrationDepth > 1e-6) {
-      const nx = -epaResult.contactNormalX
-      const ny = -epaResult.contactNormalY
+      let nx = -epaResult.contactNormalX
+      let ny = -epaResult.contactNormalY
+
+      // Ensure normal points from body A toward body B
+      const toBX = buffers.positionX[b] - buffers.positionX[a]
+      const toBY = buffers.positionY[b] - buffers.positionY[a]
+      if (nx * toBX + ny * toBY < 0) {
+        nx = -nx
+        ny = -ny
+      }
+
+      // Clamp penetration depth using SAT for box-box to prevent explosive position correction
+      let depth = epaResult.penetrationDepth
+      if (typeA === ShapeType.Box && typeB === ShapeType.Box) {
+        const angleA = buffers.angle[a]
+        const angleB = buffers.angle[b]
+        const dx = buffers.positionX[b] - buffers.positionX[a]
+        const dy = buffers.positionY[b] - buffers.positionY[a]
+
+        // SAT for box-box: test both boxes' local axes
+        const axes: [number, number][] = []
+        // Box A axes
+        const cosA = Math.cos(angleA)
+        const sinA = Math.sin(angleA)
+        axes.push([cosA, sinA])
+        axes.push([-sinA, cosA])
+        // Box B axes
+        const cosB = Math.cos(angleB)
+        const sinB = Math.sin(angleB)
+        axes.push([cosB, sinB])
+        axes.push([-sinB, cosB])
+
+        let minOverlap = Infinity
+        let minAxisX = 0
+        let minAxisY = 0
+        let satValid = true
+        for (const [ax, ay] of axes) {
+          // Project box A half-extents onto axis
+          const rA = Math.abs(buffers.halfExtentX[a] * (ax * cosA + ay * sinA)) +
+                     Math.abs(buffers.halfExtentY[a] * (ax * (-sinA) + ay * cosA))
+          // Project box B half-extents onto axis
+          const rB = Math.abs(buffers.halfExtentX[b] * (ax * cosB + ay * sinB)) +
+                     Math.abs(buffers.halfExtentY[b] * (ax * (-sinB) + ay * cosB))
+          // Project center offset onto axis
+          const d = Math.abs(dx * ax + dy * ay)
+          const overlap = rA + rB - d
+          if (overlap <= 0) {
+            satValid = false
+            break
+          }
+          if (overlap < minOverlap) {
+            minOverlap = overlap
+            minAxisX = ax
+            minAxisY = ay
+          }
+        }
+        if (satValid) {
+          depth = minOverlap
+          // Use SAT normal (from A to B)
+          const sign = dx * minAxisX + dy * minAxisY >= 0 ? 1 : -1
+          nx = minAxisX * sign
+          ny = minAxisY * sign
+        }
+      }
+
+      // Hard cap on penetration depth to prevent solver explosions from EPA edge cases
+      if (depth > EPA_DEPTH_CAP) {
+        depth = EPA_DEPTH_CAP
+      }
+
       const manifold = buildContactManifold(
         a, b, buffers,
         vertsAX, vertsAY, countA, typeA,
         vertsBX, vertsBY, countB, typeB,
-        epaResult.penetrationDepth,
+        depth,
         nx, ny,
       )
       if (manifold) { manifolds.push(manifold); continue }

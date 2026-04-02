@@ -1,6 +1,6 @@
 import type { MatchaBuffers } from './buffers.js'
 import type { CollisionPair, ContactManifold } from './collision.js'
-import type { WorldConfig } from './config.js'
+import type { BroadphaseMethod, NarrowphaseMethod, WorldConfig } from './config.js'
 
 /**
  * The contract between the world (Dev B) and physics core (Dev A).
@@ -8,10 +8,26 @@ import type { WorldConfig } from './config.js'
  */
 export interface PhysicsBackend {
   /** Run broadphase on current positions, return candidate pairs. */
-  broadphase(buffers: MatchaBuffers, count: number): CollisionPair[]
+  broadphase(
+    buffers: MatchaBuffers,
+    count: number,
+    method?: BroadphaseMethod,
+  ): CollisionPair[]
 
   /** Run narrowphase on candidate pairs, return contact manifolds. */
-  narrowphase(buffers: MatchaBuffers, pairs: CollisionPair[]): ContactManifold[]
+  narrowphase(
+    buffers: MatchaBuffers,
+    pairs: CollisionPair[],
+    method?: NarrowphaseMethod,
+  ): ContactManifold[]
+
+  /** Run the full collision pipeline: broadphase → narrowphase. */
+  collide(
+    buffers: MatchaBuffers,
+    count: number,
+    broadphaseMethod?: BroadphaseMethod,
+    narrowphaseMethod?: NarrowphaseMethod,
+  ): ContactManifold[]
 
   /** Solve velocity constraints (contacts + joints). */
   solveVelocity(

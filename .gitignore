@@ -6,3 +6,5 @@ coverage/
 target/
 pkg/
 .turbo/
+.claude/
+Template-Repo/

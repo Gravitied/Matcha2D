@@ -10,14 +10,14 @@ npm test             # Run all tests (vitest)
 npm run test:watch   # Watch mode for tests
 npm run lint         # Type-check entire project (tsc -b --noEmit)
 npm run clean        # Remove all dist/ folders
-
+D
 # Single package
 npm run build -w packages/core
 npm test -w packages/core
 ```
 ## Template
-Template-Repo folder : C:\Users\winsi\Projects\Matcha2D\Template-Repo
-Use the Template-Repo folder to reference all algorithms and code as the working version. The Template-Repo should be treated as a perfect project and all errors should be assumed to be something elses fault if the fault is assumed to be the Template-Repos. Do not change any code inside of the template repo only use it for reference.
+Matcha2D_Blueprint folder : C:\Users\winsi\Projects\Matcha2D\Matcha2D_Blueprint
+Use the TMatcha2D_Blueprint folder to reference all algorithms and code as the working version. The Matcha2D_Blueprint should be treated as a perfect project and all errors should be assumed to be something elses fault if the fault is assumed to be the Matcha2D_Blueprint, Do not change any code inside of the Matcha2D_Blueprint only use it for reference.
 
 ## Architecture
 

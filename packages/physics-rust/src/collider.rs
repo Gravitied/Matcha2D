@@ -1,0 +1,367 @@
+use crate::body::RigidBodyHandle;
+use crate::math::Vec2;
+
+#[derive(Clone, Debug)]
+pub enum Shape {
+    Ball { radius: f32 },
+    Cuboid { hx: f32, hy: f32 },
+    Polygon { vertices: Vec<Vec2> },
+}
+
+impl Shape {
+    pub fn ball(radius: f32) -> Self {
+        Shape::Ball { radius }
+    }
+
+    pub fn cuboid(hx: f32, hy: f32) -> Self {
+        Shape::Cuboid { hx, hy }
+    }
+
+    pub fn polygon(vertices: Vec<Vec2>) -> Self {
+        Shape::Polygon { vertices }
+    }
+
+    pub fn triangle(p1: Vec2, p2: Vec2, p3: Vec2) -> Self {
+        Shape::Polygon {
+            vertices: vec![p1, p2, p3],
+        }
+    }
+
+    pub fn regular_polygon(radius: f32, sides: usize) -> Self {
+        let mut vertices = Vec::with_capacity(sides);
+        for i in 0..sides {
+            let angle = 2.0 * std::f32::consts::PI * (i as f32) / (sides as f32)
+                - std::f32::consts::FRAC_PI_2;
+            vertices.push(Vec2::new(angle.cos() * radius, angle.sin() * radius));
+        }
+        Shape::Polygon { vertices }
+    }
+
+    pub fn compute_mass_properties(&self, density: f32) -> (f32, f32) {
+        match self {
+            Shape::Ball { radius } => {
+                let area = std::f32::consts::PI * radius * radius;
+                let mass = area * density;
+                let inertia = 0.5 * mass * radius * radius;
+                (mass, inertia)
+            }
+            Shape::Cuboid { hx, hy } => {
+                let area = 4.0 * hx * hy;
+                let mass = area * density;
+                let inertia = mass * (hx * hx + hy * hy) / 3.0;
+                (mass, inertia)
+            }
+            Shape::Polygon { vertices } => {
+                if vertices.len() < 3 {
+                    return (0.0, 0.0);
+                }
+                // Shoelace formula for area and centroid
+                let mut area = 0.0;
+                let mut inertia = 0.0;
+                let n = vertices.len();
+                for i in 0..n {
+                    let j = (i + 1) % n;
+                    let cross = vertices[i].cross(vertices[j]);
+                    area += cross;
+                    inertia += cross
+                        * (vertices[i].dot(vertices[i])
+                            + vertices[i].dot(vertices[j])
+                            + vertices[j].dot(vertices[j]));
+                }
+                area = area.abs() * 0.5;
+                let mass = area * density;
+                let inertia = inertia.abs() * density / 12.0;
+                (mass, inertia)
+            }
+        }
+    }
+
+    pub fn compute_centroid(&self) -> Vec2 {
+        match self {
+            Shape::Ball { .. } | Shape::Cuboid { .. } => Vec2::zero(),
+            Shape::Polygon { vertices } => {
+                if vertices.is_empty() {
+                    return Vec2::zero();
+                }
+                let mut centroid = Vec2::zero();
+                for v in vertices {
+                    centroid += *v;
+                }
+                centroid / vertices.len() as f32
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColliderType {
+    Solid,
+    Sensor,
+}
+
+impl Default for ColliderType {
+    fn default() -> Self {
+        Self::Solid
+    }
+}
+
+/// Generational handle for colliders
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ColliderHandle(pub u32);
+
+impl ColliderHandle {
+    pub const INVALID: Self = Self(u32::MAX);
+
+    #[inline]
+    pub fn index(self) -> usize {
+        (self.0 & 0x00FF_FFFF) as usize
+    }
+
+    #[inline]
+    pub fn generation(self) -> u8 {
+        (self.0 >> 24) as u8
+    }
+
+    #[inline]
+    pub fn is_valid(self) -> bool {
+        self.0 != u32::MAX
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Collider {
+    pub shape: Shape,
+    pub collider_type: ColliderType,
+    pub parent: Option<RigidBodyHandle>,
+    pub local_pos: Vec2,
+    pub local_rot: crate::math::Rot,
+    pub friction: f32,
+    pub restitution: f32,
+    pub density: f32,
+    pub user_data: u32,
+}
+
+impl Default for Collider {
+    fn default() -> Self {
+        Self {
+            shape: Shape::ball(1.0),
+            collider_type: ColliderType::Solid,
+            parent: None,
+            local_pos: Vec2::zero(),
+            local_rot: crate::math::Rot::identity(),
+            friction: 0.3,
+            restitution: 0.0,
+            density: 1.0,
+            user_data: 0,
+        }
+    }
+}
+
+impl Collider {
+    pub fn is_sensor(&self) -> bool {
+        self.collider_type == ColliderType::Sensor
+    }
+}
+
+pub struct ColliderBuilder {
+    collider: Collider,
+}
+
+impl ColliderBuilder {
+    pub fn ball(radius: f32) -> Self {
+        Self {
+            collider: Collider {
+                shape: Shape::ball(radius),
+                ..Default::default()
+            },
+        }
+    }
+
+    pub fn cuboid(hx: f32, hy: f32) -> Self {
+        Self {
+            collider: Collider {
+                shape: Shape::cuboid(hx, hy),
+                ..Default::default()
+            },
+        }
+    }
+
+    pub fn polygon(vertices: Vec<Vec2>) -> Self {
+        Self {
+            collider: Collider {
+                shape: Shape::polygon(vertices),
+                ..Default::default()
+            },
+        }
+    }
+
+    pub fn sensor(mut self) -> Self {
+        self.collider.collider_type = ColliderType::Sensor;
+        self
+    }
+
+    pub fn friction(mut self, f: f32) -> Self {
+        self.collider.friction = f;
+        self
+    }
+
+    pub fn restitution(mut self, r: f32) -> Self {
+        self.collider.restitution = r;
+        self
+    }
+
+    pub fn density(mut self, d: f32) -> Self {
+        self.collider.density = d;
+        self
+    }
+
+    pub fn position(mut self, pos: Vec2) -> Self {
+        self.collider.local_pos = pos;
+        self
+    }
+
+    pub fn parent(mut self, handle: RigidBodyHandle) -> Self {
+        self.collider.parent = Some(handle);
+        self
+    }
+
+    pub fn user_data(mut self, data: u32) -> Self {
+        self.collider.user_data = data;
+        self
+    }
+
+    pub fn build(self) -> Collider {
+        self.collider
+    }
+}
+
+/// Arena-based set of colliders with generational handles
+pub struct ColliderSet {
+    colliders: Vec<Collider>,
+    generations: Vec<u8>,
+    free_indices: Vec<usize>,
+}
+
+impl ColliderSet {
+    pub fn new() -> Self {
+        Self {
+            colliders: Vec::new(),
+            generations: Vec::new(),
+            free_indices: Vec::new(),
+        }
+    }
+
+    pub fn insert(&mut self, collider: Collider) -> ColliderHandle {
+        if let Some(idx) = self.free_indices.pop() {
+            self.generations[idx] = self.generations[idx].wrapping_add(1);
+            self.colliders[idx] = collider;
+            ColliderHandle(idx as u32 | ((self.generations[idx] as u32) << 24))
+        } else {
+            let idx = self.colliders.len();
+            self.colliders.push(collider);
+            self.generations.push(0);
+            ColliderHandle(idx as u32)
+        }
+    }
+
+    pub fn remove(&mut self, handle: ColliderHandle) -> Option<Collider> {
+        let idx = handle.index();
+        if idx < self.colliders.len() && self.generations[idx] == handle.generation() {
+            self.generations[idx] = self.generations[idx].wrapping_add(1);
+            let collider = std::mem::replace(&mut self.colliders[idx], Collider::default());
+            self.free_indices.push(idx);
+            Some(collider)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn get(&self, handle: ColliderHandle) -> Option<&Collider> {
+        let idx = handle.index();
+        if idx < self.colliders.len() && self.generations[idx] == handle.generation() {
+            Some(&self.colliders[idx])
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, handle: ColliderHandle) -> Option<&mut Collider> {
+        let idx = handle.index();
+        if idx < self.colliders.len() && self.generations[idx] == handle.generation() {
+            Some(&mut self.colliders[idx])
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn get_unchecked(&self, idx: usize) -> &Collider {
+        &self.colliders[idx]
+    }
+
+    #[inline]
+    pub fn get_unchecked_mut(&mut self, idx: usize) -> &mut Collider {
+        &mut self.colliders[idx]
+    }
+
+    pub fn len(&self) -> usize {
+        self.colliders.len() - self.free_indices.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn live_indices(&self) -> Vec<usize> {
+        (0..self.colliders.len())
+            .filter(|i| !self.free_indices.contains(i))
+            .collect()
+    }
+
+    /// Returns the full generational handle for a collider at a given index.
+    pub fn handle_for_index(&self, idx: usize) -> ColliderHandle {
+        ColliderHandle(idx as u32 | ((self.generations[idx] as u32) << 24))
+    }
+}
+
+impl Default for ColliderSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_shape_mass() {
+        let ball = Shape::ball(1.0);
+        let (mass, inertia) = ball.compute_mass_properties(1.0);
+        assert!((mass - std::f32::consts::PI).abs() < 1e-5);
+        assert!((inertia - 0.5 * std::f32::consts::PI).abs() < 1e-5);
+
+        let cuboid = Shape::cuboid(1.0, 1.0);
+        let (mass, inertia) = cuboid.compute_mass_properties(1.0);
+        assert!((mass - 4.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_collider_set() {
+        let mut set = ColliderSet::new();
+        let c1 = set.insert(ColliderBuilder::ball(0.5).build());
+        let c2 = set.insert(ColliderBuilder::cuboid(1.0, 1.0).friction(0.5).build());
+        assert_eq!(set.len(), 2);
+
+        let c = set.get(c1).unwrap();
+        assert_eq!(c.friction, 0.3); // default
+
+        let c = set.get(c2).unwrap();
+        assert_eq!(c.friction, 0.5);
+
+        set.remove(c1).unwrap();
+        assert_eq!(set.len(), 1);
+    }
+}

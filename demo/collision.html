@@ -7,6 +7,8 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #111; color: #eee; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 12px; }
     h1 { font-size: 16px; color: #a8d5a2; letter-spacing: 2px; }
+    h1 a { color: #a8d5a2; text-decoration: none; }
+    h1 a:hover { text-decoration: underline; }
     #controls { display: flex; gap: 16px; align-items: center; font-size: 13px; flex-wrap: wrap; justify-content: center; }
     label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
     select, button { background: #222; color: #eee; border: 1px solid #444; padding: 4px 10px; font-family: monospace; cursor: pointer; }
@@ -16,31 +18,26 @@
     .slider-group { display: flex; align-items: center; gap: 4px; }
     canvas { border: 1px solid #333; }
     #stats { font-size: 12px; color: #888; min-height: 1.4em; text-align: center; }
+    #loading { color: #a8d5a2; font-size: 14px; }
+    #diagnostics { background: #1a1a1a; border: 1px solid #333; padding: 8px 12px; font-size: 11px; color: #aaa; max-width: 700px; width: 100%; }
+    #diagnostics h3 { color: #888; font-size: 11px; margin-bottom: 4px; letter-spacing: 1px; }
+    .diag-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .diag-val { color: #ddd; }
+    .diag-warn { color: #ff6; }
+    .diag-err { color: #f66; }
+    .diag-ok { color: #6f6; }
   </style>
 </head>
 <body>
-  <h1>Matcha2D — Collision Demo</h1>
+  <h1><a href="/demo/demo-hub.html">Matcha2D</a> — Collision Demo</h1>
   <div id="controls">
-    <label>Shape:
-      <select id="shape">
-        <option value="circle">Circle</option>
-        <option value="box" selected>Box</option>
-        <option value="triangle">Triangle</option>
-        <option value="pentagon">Pentagon</option>
-        <option value="hexagon">Hexagon</option>
+    <label>Scene:
+      <select id="scene">
+        <option value="bounce" selected>Bounce</option>
+        <option value="stack">Stack</option>
+        <option value="pyramid">Pyramid</option>
+        <option value="spin">Spin</option>
         <option value="mixed">Mixed</option>
-      </select>
-    </label>
-    <label>Broadphase:
-      <select id="broadphase">
-        <option value="sap" selected>SAP (Sort-and-Sweep)</option>
-        <option value="bvh">BVH (AABB Tree)</option>
-      </select>
-    </label>
-    <label>Narrowphase:
-      <select id="narrowphase">
-        <option value="sat" selected>SAT</option>
-        <option value="gjk">GJK + EPA</option>
       </select>
     </label>
     <label>Bodies:
@@ -53,42 +50,53 @@
     </label>
     <button id="reset">Reset</button>
     <label><input type="checkbox" id="animate" checked> Animate</label>
-    <label><input type="checkbox" id="showNormals" checked> Show Normals</label>
-    <label><input type="checkbox" id="showContacts" checked> Show Contacts</label>
+    <label><input type="checkbox" id="showVertices"> Show Vertices</label>
+    <label><input type="checkbox" id="showContacts"> Show Contacts</label>
     <label class="slider-group">Friction:
       <input type="range" id="friction" min="0" max="1" step="0.05" value="0.3">
       <span class="slider-val" id="frictionVal">0.30</span>
     </label>
-    <label class="slider-group">Mass:
-      <input type="range" id="mass" min="0.1" max="5" step="0.1" value="1">
-      <span class="slider-val" id="massVal">1.0</span>
+    <label class="slider-group">Restitution:
+      <input type="range" id="restitution" min="0" max="1" step="0.05" value="0.0">
+      <span class="slider-val" id="restitutionVal">0.00</span>
     </label>
-    <label class="slider-group">Start Speed:
+    <label class="slider-group">Speed:
       <input type="range" id="startSpeed" min="10" max="500" step="10" value="150">
       <span class="slider-val" id="startSpeedVal">150</span>
     </label>
   </div>
-  <canvas id="canvas" width="800" height="500"></canvas>
+  <div id="loading">Loading WASM engine...</div>
+  <canvas id="canvas" width="800" height="500" style="display:none"></canvas>
   <div id="stats"></div>
+  <div id="diagnostics" style="display:none">
+    <h3>Physics Diagnostics</h3>
+    <div class="diag-row">
+      <div id="diagSpeed"></div>
+      <div id="diagContacts"></div>
+      <div id="diagOverlap"></div>
+    </div>
+  </div>
 
 <script type="importmap">
 {
   "imports": {
     "@matcha2d/types": "../packages/types/dist/index.js",
-    "@matcha2d/core": "../packages/core/dist/index.js"
+    "@matcha2d/physics-rust": "../packages/physics-rust/pkg/matcha2d_physics.js",
+    "@matcha2d/world": "../packages/world/dist/index.js"
   }
 }
 </script>
 <script type="module">
-import { createBuffers, ShapeType, BodyFlags, MAX_VERTICES_PER_SHAPE } from '@matcha2d/types'
-import { broadphase, narrowphase, gjkNarrowphase, mat2FromAngle, collide } from '@matcha2d/core'
+import { World } from '@matcha2d/world'
 
 const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
 const W = canvas.width, H = canvas.height
 
-let bodyCount = 10
-let buffers, bodyData
+let world = null
+let bodies = []
+let bodyShapes = []
+let wallBodies = []
 
 const SHAPE_COLORS = {
   circle:   { fill: 'rgba(100,180,255,0.18)', stroke: '#64b4ff' },
@@ -96,38 +104,16 @@ const SHAPE_COLORS = {
   triangle: { fill: 'rgba(255,180,60,0.18)', stroke: '#ffb43c' },
   pentagon: { fill: 'rgba(200,100,255,0.18)', stroke: '#c864ff' },
   hexagon:  { fill: 'rgba(255,100,180,0.18)', stroke: '#ff64b4' },
+  floor:    { fill: 'rgba(255,255,255,0.05)', stroke: '#444' },
 }
 
-function regularPolygonVerts(sides, radius, outX, outY) {
+function regularPolygonVerts(sides, radius) {
+  const verts = []
   for (let i = 0; i < sides; i++) {
     const angle = (2 * Math.PI * i) / sides - Math.PI / 2
-    outX[i] = Math.cos(angle) * radius
-    outY[i] = Math.sin(angle) * radius
+    verts.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius })
   }
-}
-
-function getShapeConfig(shape, radius) {
-  const tmpX = new Array(16), tmpY = new Array(16)
-  switch (shape) {
-    case 'circle':
-      return { type: ShapeType.Circle, radius, halfX: radius, halfY: radius, verts: null, vertCount: 0 }
-    case 'box': {
-      const s = radius * 1.2
-      return { type: ShapeType.Box, radius: 0, halfX: s, halfY: s, verts: null, vertCount: 0 }
-    }
-    case 'triangle': {
-      regularPolygonVerts(3, radius, tmpX, tmpY)
-      return { type: ShapeType.Polygon, radius: 0, halfX: radius, halfY: radius, verts: { x: [...tmpX], y: [...tmpY] }, vertCount: 3 }
-    }
-    case 'pentagon': {
-      regularPolygonVerts(5, radius, tmpX, tmpY)
-      return { type: ShapeType.Polygon, radius: 0, halfX: radius, halfY: radius, verts: { x: [...tmpX], y: [...tmpY] }, vertCount: 5 }
-    }
-    case 'hexagon': {
-      regularPolygonVerts(6, radius, tmpX, tmpY)
-      return { type: ShapeType.Polygon, radius: 0, halfX: radius, halfY: radius, verts: { x: [...tmpX], y: [...tmpY] }, vertCount: 6 }
-    }
-  }
+  return verts
 }
 
 function randomShape() {
@@ -135,242 +121,263 @@ function randomShape() {
   return shapes[Math.floor(Math.random() * shapes.length)]
 }
 
-function init() {
-  bodyCount = parseInt(document.getElementById('bodyCount').value)
-  buffers = createBuffers(bodyCount)
-  bodyData = []
-  const shapeSel = document.getElementById('shape').value
-
-  for (let i = 0; i < bodyCount; i++) {
-    const shapeName = shapeSel === 'mixed' ? randomShape() : shapeSel
-    const radius = 15 + Math.random() * 25
-    const cfg = getShapeConfig(shapeName, radius)
-
-    buffers.positionX[i] = cfg.halfX + Math.random() * (W - cfg.halfX * 2)
-    buffers.positionY[i] = cfg.halfY + Math.random() * (H - cfg.halfY * 2)
-    buffers.angle[i] = Math.random() * Math.PI * 2
-    buffers.flags[i] = BodyFlags.ACTIVE
-    buffers.halfExtentX[i] = cfg.halfX
-    buffers.halfExtentY[i] = cfg.halfY
-    buffers.shapeType[i] = cfg.type
-    buffers.shapeRadius[i] = cfg.radius
-    const massScale = parseFloat(document.getElementById('mass').value)
-    const startSpeed = parseFloat(document.getElementById('startSpeed').value)
-
-    buffers.velocityX[i] = (Math.random() - 0.5) * startSpeed
-    buffers.velocityY[i] = (Math.random() - 0.5) * startSpeed
-    buffers.angularVel[i] = (Math.random() - 0.5) * 2
-
-    if (cfg.verts) {
-      const base = i * MAX_VERTICES_PER_SHAPE
-      for (let v = 0; v < cfg.vertCount; v++) {
-        buffers.shapeVerticesX[base + v] = cfg.verts.x[v]
-        buffers.shapeVerticesY[base + v] = cfg.verts.y[v]
-      }
-      buffers.shapeVertexCount[i] = cfg.vertCount
+function addCollider(body, shapeName, radius, friction, restitution) {
+  switch (shapeName) {
+    case 'circle':
+      world.addCollider(body, { shape: 'ball', radius, friction, restitution })
+      break
+    case 'box': {
+      const s = radius * 1.2
+      world.addCollider(body, { shape: 'cuboid', halfExtentX: s, halfExtentY: s, friction, restitution })
+      break
     }
-
-    const mass = (cfg.type === ShapeType.Circle
-      ? Math.PI * cfg.radius * cfg.radius * 0.01
-      : cfg.halfX * cfg.halfY * 0.01) * massScale
-    buffers.mass[i] = mass
-    buffers.invMass[i] = 1 / mass
-    buffers.inertia[i] = cfg.type === ShapeType.Circle
-      ? 0.5 * mass * cfg.radius * cfg.radius
-      : (1 / 12) * mass * (4 * cfg.halfX * cfg.halfX + 4 * cfg.halfY * cfg.halfY)
-    buffers.invInertia[i] = 1 / buffers.inertia[i]
-
-    bodyData.push({
-      shape: shapeName,
-      radius,
-    })
+    case 'triangle':
+      world.addCollider(body, { shape: 'polygon', vertices: regularPolygonVerts(3, radius), friction, restitution })
+      break
+    case 'pentagon':
+      world.addCollider(body, { shape: 'polygon', vertices: regularPolygonVerts(5, radius), friction, restitution })
+      break
+    case 'hexagon':
+      world.addCollider(body, { shape: 'polygon', vertices: regularPolygonVerts(6, radius), friction, restitution })
+      break
+    default:
+      world.addCollider(body, { shape: 'ball', radius, friction, restitution })
   }
 }
 
-const POSITION_CORRECTION_PERCENT = 0.8
-const SLOP = 0.01
-const EPSILON = 1e-6
-
-function getFriction() {
-  return parseFloat(document.getElementById('friction').value)
+function clearScene() {
+  for (const b of bodies) world.destroyBody(b)
+  for (const b of wallBodies) world.destroyBody(b)
+  bodies = []
+  bodyShapes = []
+  wallBodies = []
 }
 
-function resolveCollision(a, b, manifold) {
-  const invMassA = buffers.invMass[a]
-  const invMassB = buffers.invMass[b]
-  const invMassSum = invMassA + invMassB
-  if (invMassSum < EPSILON) return
+function createWalls(friction, restitution) {
+  const wallRestitution = restitution > 0 ? restitution : 1 - friction * 0.4
+  // Floor
+  const floor = world.createBody({ positionX: W / 2, positionY: H - 5, type: 'static' })
+  world.addCollider(floor, { shape: 'cuboid', halfExtentX: W / 2 + 20, halfExtentY: 10, friction, restitution: wallRestitution })
+  wallBodies.push(floor)
+  bodyShapes.push({ shape: 'floor', radius: 10 })
 
-  const [cA, negSA, sA] = mat2FromAngle(buffers.angle[a])
-  const [cB, negSB, sB] = mat2FromAngle(buffers.angle[b])
-  const nx = manifold.normal.x
-  const ny = manifold.normal.y
+  // Ceiling
+  const ceil = world.createBody({ positionX: W / 2, positionY: 5, type: 'static' })
+  world.addCollider(ceil, { shape: 'cuboid', halfExtentX: W / 2 + 20, halfExtentY: 10, friction, restitution: wallRestitution })
+  wallBodies.push(ceil)
+  bodyShapes.push({ shape: 'floor', radius: 10 })
 
-  for (const contact of manifold.contacts) {
-    const worldCX = buffers.positionX[a] + cA * contact.localA.x + negSA * contact.localA.y
-    const worldCY = buffers.positionY[a] + sA * contact.localA.x + cA * contact.localA.y
+  // Left wall
+  const left = world.createBody({ positionX: 5, positionY: H / 2, type: 'static' })
+  world.addCollider(left, { shape: 'cuboid', halfExtentX: 10, halfExtentY: H / 2 + 20, friction, restitution: wallRestitution })
+  wallBodies.push(left)
+  bodyShapes.push({ shape: 'floor', radius: 10 })
 
-    const rAX = worldCX - buffers.positionX[a]
-    const rAY = worldCY - buffers.positionY[a]
-    const rBX = worldCX - buffers.positionX[b]
-    const rBY = worldCY - buffers.positionY[b]
+  // Right wall
+  const right = world.createBody({ positionX: W - 5, positionY: H / 2, type: 'static' })
+  world.addCollider(right, { shape: 'cuboid', halfExtentX: 10, halfExtentY: H / 2 + 20, friction, restitution: wallRestitution })
+  wallBodies.push(right)
+  bodyShapes.push({ shape: 'floor', radius: 10 })
+}
 
-    const vAX = buffers.velocityX[a], vAY = buffers.velocityY[a]
-    const vBX = buffers.velocityX[b], vBY = buffers.velocityY[b]
-    const wA = buffers.angularVel[a], wB = buffers.angularVel[b]
+function createBounceScene(bodyCount, friction, restitution, startSpeed) {
+  createWalls(friction, restitution)
+  for (let i = 0; i < bodyCount; i++) {
+    const shapeName = randomShape()
+    const radius = 15 + Math.random() * 25
+    const x = radius + Math.random() * (W - radius * 2)
+    const y = radius + Math.random() * (H - radius * 2)
+    const body = world.createBody({
+      positionX: x, positionY: y,
+      angle: Math.random() * Math.PI * 2, type: 'dynamic',
+    })
+    addCollider(body, shapeName, radius, friction, restitution)
+    world.setBodyVelocity(body,
+      (Math.random() - 0.5) * startSpeed,
+      (Math.random() - 0.5) * startSpeed
+    )
+    bodies.push(body)
+    bodyShapes.push({ shape: shapeName, radius })
+  }
+}
 
-    const vAXp = vAX + (-wA * rAY)
-    const vAYp = vAY + (wA * rAX)
-    const vBXp = vBX + (-wB * rBY)
-    const vBYp = vBY + (wB * rBX)
-
-    const relVX = vBXp - vAXp
-    const relVY = vBYp - vAYp
-
-    const velAlongNormal = relVX * nx + relVY * ny
-    if (velAlongNormal > 0) return
-
-    const raCrossN = rAX * ny - rAY * nx
-    const rbCrossN = rBX * ny - rBY * nx
-
-    const invInertiaA = buffers.invInertia[a]
-    const invInertiaB = buffers.invInertia[b]
-
-    const friction = getFriction()
-    const restitution = 1 - friction * 0.4
-    const j = -(1 + restitution) * velAlongNormal
-    const denom = invMassSum + raCrossN * raCrossN * invInertiaA + rbCrossN * rbCrossN * invInertiaB
-    if (denom < EPSILON) return
-    const impulse = j / denom
-
-    buffers.velocityX[a] -= impulse * invMassA * nx
-    buffers.velocityY[a] -= impulse * invMassA * ny
-    buffers.angularVel[a] -= invInertiaA * (rAX * impulse * ny - rAY * impulse * nx)
-
-    buffers.velocityX[b] += impulse * invMassB * nx
-    buffers.velocityY[b] += impulse * invMassB * ny
-    buffers.angularVel[b] += invInertiaB * (rBX * impulse * ny - rBY * impulse * nx)
-
-    const tx = relVX - velAlongNormal * nx
-    const ty = relVY - velAlongNormal * ny
-    const tLen = Math.sqrt(tx * tx + ty * ty)
-    if (tLen > EPSILON) {
-      const tnx = tx / tLen
-      const tny = ty / tLen
-      const raCrossT = rAX * tny - rAY * tnx
-      const rbCrossT = rBX * tny - rBY * tnx
-      const jt = -(relVX * tnx + relVY * tny)
-      const denomT = invMassSum + raCrossT * raCrossT * invInertiaA + rbCrossT * rbCrossT * invInertiaB
-      if (denomT > EPSILON) {
-        let frictionImpulse = jt / denomT
-        frictionImpulse = Math.max(-friction * impulse, Math.min(friction * impulse, frictionImpulse))
-        buffers.velocityX[a] -= frictionImpulse * invMassA * tnx
-        buffers.velocityY[a] -= frictionImpulse * invMassA * tny
-        buffers.angularVel[a] -= invInertiaA * (rAX * frictionImpulse * tny - rAY * frictionImpulse * tnx)
-        buffers.velocityX[b] += frictionImpulse * invMassB * tnx
-        buffers.velocityY[b] += frictionImpulse * invMassB * tny
-        buffers.angularVel[b] += invInertiaB * (rBX * frictionImpulse * tny - rBY * frictionImpulse * tnx)
-      }
+function createStackScene(bodyCount, friction, restitution) {
+  createWalls(friction, restitution)
+  const boxSize = 20
+  const cols = Math.min(Math.ceil(Math.sqrt(bodyCount * 2)), 8)
+  const rows = Math.ceil(bodyCount / cols)
+  let count = 0
+  for (let r = 0; r < rows && count < bodyCount; r++) {
+    for (let c = 0; c < cols && count < bodyCount; c++) {
+      const x = W / 2 - (cols - 1) * boxSize + c * boxSize * 2
+      const y = H - 20 - boxSize - r * boxSize * 2
+      const body = world.createBody({
+        positionX: x, positionY: y,
+        angle: 0, type: 'dynamic',
+      })
+      addCollider(body, 'box', boxSize / 1.2, friction, restitution)
+      bodies.push(body)
+      bodyShapes.push({ shape: 'box', radius: boxSize / 1.2 })
+      count++
     }
+  }
+}
 
-    const correctionMag = Math.max(contact.penetration - SLOP, 0) * POSITION_CORRECTION_PERCENT / invMassSum
-    const cx = correctionMag * nx
-    const cy = correctionMag * ny
-    buffers.positionX[a] -= cx * invMassA
-    buffers.positionY[a] -= cy * invMassA
-    buffers.positionX[b] += cx * invMassB
-    buffers.positionY[b] += cy * invMassB
+function createPyramidScene(bodyCount, friction, restitution) {
+  createWalls(friction, restitution)
+  const boxSize = 18
+  let count = 0
+  let row = 0
+  while (count < bodyCount) {
+    const colsInRow = row + 1
+    for (let c = 0; c < colsInRow && count < bodyCount; c++) {
+      const x = W / 2 - (colsInRow - 1) * boxSize + c * boxSize * 2
+      const y = H - 20 - boxSize - row * boxSize * 2
+      const body = world.createBody({
+        positionX: x, positionY: y,
+        angle: 0, type: 'dynamic',
+      })
+      addCollider(body, 'box', boxSize / 1.2, friction, restitution)
+      bodies.push(body)
+      bodyShapes.push({ shape: 'box', radius: boxSize / 1.2 })
+      count++
+    }
+    row++
+  }
+}
+
+function createSpinScene(bodyCount, friction, restitution) {
+  createWalls(friction, restitution)
+  // Static center obstacle
+  const center = world.createBody({ positionX: W / 2, positionY: H / 2, type: 'static' })
+  world.addCollider(center, { shape: 'cuboid', halfExtentX: 40, halfExtentY: 40, friction, restitution })
+  wallBodies.push(center)
+  bodyShapes.push({ shape: 'floor', radius: 40 })
+
+  for (let i = 0; i < bodyCount; i++) {
+    const shapeName = randomShape()
+    const radius = 12 + Math.random() * 18
+    const angle = (Math.PI * 2 * i) / bodyCount
+    const dist = 150 + Math.random() * 100
+    const x = W / 2 + Math.cos(angle) * dist
+    const y = H / 2 + Math.sin(angle) * dist
+    const body = world.createBody({
+      positionX: x, positionY: y,
+      angle: Math.random() * Math.PI * 2, type: 'dynamic',
+    })
+    addCollider(body, shapeName, radius, friction, restitution)
+    // Aim toward center with some tangential velocity
+    const speed = startSpeed * 0.5
+    const tx = W / 2 - x, ty = H / 2 - y
+    const tlen = Math.sqrt(tx * tx + ty * ty) || 1
+    world.setBodyVelocity(body,
+      (tx / tlen) * speed + (-ty / tlen) * speed * 0.5,
+      (ty / tlen) * speed + (tx / tlen) * speed * 0.5
+    )
+    bodies.push(body)
+    bodyShapes.push({ shape: shapeName, radius })
+  }
+}
+
+function createMixedScene(bodyCount, friction, restitution) {
+  createWalls(friction, restitution)
+  // Floor ramp
+  const ramp = world.createBody({ positionX: W * 0.3, positionY: H - 20, type: 'static', angle: -0.3 })
+  world.addCollider(ramp, { shape: 'cuboid', halfExtentX: 120, halfExtentY: 8, friction, restitution })
+  wallBodies.push(ramp)
+  bodyShapes.push({ shape: 'floor', radius: 8 })
+
+  for (let i = 0; i < bodyCount; i++) {
+    const shapeName = randomShape()
+    const radius = 10 + Math.random() * 20
+    const x = 50 + Math.random() * (W - 100)
+    const y = 30 + Math.random() * (H * 0.4)
+    const body = world.createBody({
+      positionX: x, positionY: y,
+      angle: Math.random() * Math.PI * 2, type: 'dynamic',
+    })
+    addCollider(body, shapeName, radius, friction, restitution)
+    world.setBodyVelocity(body, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50)
+    bodies.push(body)
+    bodyShapes.push({ shape: shapeName, radius })
+  }
+}
+
+async function init() {
+  if (!world) {
+    world = await World.create({
+      gravity: { x: 0, y: 400 },
+    })
+    document.getElementById('loading').style.display = 'none'
+    canvas.style.display = 'block'
+  }
+
+  clearScene()
+
+  const scene = document.getElementById('scene').value
+  const bodyCount = parseInt(document.getElementById('bodyCount').value)
+  const friction = parseFloat(document.getElementById('friction').value)
+  const restitution = parseFloat(document.getElementById('restitution').value)
+  const startSpeed = parseFloat(document.getElementById('startSpeed').value)
+
+  switch (scene) {
+    case 'bounce': createBounceScene(bodyCount, friction, restitution, startSpeed); break
+    case 'stack': createStackScene(bodyCount, friction, restitution); break
+    case 'pyramid': createPyramidScene(bodyCount, friction, restitution); break
+    case 'spin': createSpinScene(bodyCount, friction, restitution); break
+    case 'mixed': createMixedScene(bodyCount, friction, restitution); break
   }
 }
 
 function step(dt) {
-  const bpMethod = document.getElementById('broadphase').value
-  const npMethod = document.getElementById('narrowphase').value
-
-  const manifolds = collide(buffers, bodyCount, bpMethod, npMethod)
-
-  for (const m of manifolds) {
-    resolveCollision(m.bodyA, m.bodyB, m)
-  }
-
-  for (let i = 0; i < bodyCount; i++) {
-    buffers.positionX[i] += buffers.velocityX[i] * dt
-    buffers.positionY[i] += buffers.velocityY[i] * dt
-    buffers.angle[i] += buffers.angularVel[i] * dt
-
-    const b = bodyData[i]
-    const margin = b.shape === 'circle' ? b.radius : Math.max(buffers.halfExtentX[i], buffers.halfExtentY[i])
-    const friction = getFriction()
-    const wallRestitution = 1 - friction * 0.4
-    const wallAngularDamping = 1 - friction * 0.02
-
-    if (buffers.positionX[i] - margin < 0) {
-      buffers.positionX[i] = margin
-      buffers.velocityX[i] = Math.abs(buffers.velocityX[i]) * wallRestitution
-      buffers.angularVel[i] *= wallAngularDamping
-    }
-    if (buffers.positionX[i] + margin > W) {
-      buffers.positionX[i] = W - margin
-      buffers.velocityX[i] = -Math.abs(buffers.velocityX[i]) * wallRestitution
-      buffers.angularVel[i] *= wallAngularDamping
-    }
-    if (buffers.positionY[i] - margin < 0) {
-      buffers.positionY[i] = margin
-      buffers.velocityY[i] = Math.abs(buffers.velocityY[i]) * wallRestitution
-      buffers.angularVel[i] *= wallAngularDamping
-    }
-    if (buffers.positionY[i] + margin > H) {
-      buffers.positionY[i] = H - margin
-      buffers.velocityY[i] = -Math.abs(buffers.velocityY[i]) * wallRestitution
-      buffers.angularVel[i] *= wallAngularDamping
-    }
-
-    const damping = 1 - friction * 0.001
-    const angularDamping = 1 - friction * 0.002
-    buffers.velocityX[i] *= damping
-    buffers.velocityY[i] *= damping
-    buffers.angularVel[i] *= angularDamping
-  }
+  if (!world) return
+  world.step(dt)
 }
 
-function drawShape(i, hit) {
-  const px = buffers.positionX[i], py = buffers.positionY[i]
-  const type = buffers.shapeType[i]
-  const b = bodyData[i]
+function drawShape(i) {
+  const [px, py] = world.getBodyPosition(bodies[i])
+  const angle = world.getBodyAngle(bodies[i])
+  const b = bodyShapes[i]
   const colors = SHAPE_COLORS[b.shape] || SHAPE_COLORS.box
 
-  ctx.fillStyle   = hit ? 'rgba(255,80,80,0.25)' : colors.fill
-  ctx.strokeStyle = hit ? '#ff5050' : colors.stroke
-  ctx.lineWidth   = hit ? 2.5 : 1.5
+  ctx.fillStyle = colors.fill
+  ctx.strokeStyle = colors.stroke
+  ctx.lineWidth = 1.5
 
-  if (type === ShapeType.Circle) {
+  const cos = Math.cos(angle), sin = Math.sin(angle)
+
+  if (b.shape === 'circle') {
     ctx.beginPath()
-    ctx.arc(px, py, buffers.shapeRadius[i], 0, Math.PI * 2)
+    ctx.arc(px, py, b.radius, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
-  } else if (type === ShapeType.Box) {
-    const [c, negS, s] = mat2FromAngle(buffers.angle[i])
-    const hx = buffers.halfExtentX[i], hy = buffers.halfExtentY[i]
-    const lx = [-hx, hx, hx, -hx], ly = [-hy, -hy, hy, hy]
+  } else if (b.shape === 'box') {
+    const s = b.radius * 1.2
+    const lx = [-s, s, s, -s], ly = [-s, -s, s, s]
     ctx.beginPath()
     for (let v = 0; v < 4; v++) {
-      const wx = c * lx[v] + negS * ly[v] + px
-      const wy = s * lx[v] + c * ly[v] + py
+      const wx = cos * lx[v] - sin * ly[v] + px
+      const wy = sin * lx[v] + cos * ly[v] + py
       v === 0 ? ctx.moveTo(wx, wy) : ctx.lineTo(wx, wy)
     }
     ctx.closePath()
     ctx.fill()
     ctx.stroke()
+  } else if (b.shape === 'floor') {
+    // Static walls - draw as simple rectangles
+    ctx.fillStyle = 'rgba(255,255,255,0.03)'
+    ctx.strokeStyle = '#333'
+    ctx.lineWidth = 1
+    ctx.fillRect(px - b.radius, py - b.radius, b.radius * 2, b.radius * 2)
+    ctx.strokeRect(px - b.radius, py - b.radius, b.radius * 2, b.radius * 2)
+    return
   } else {
-    const count = buffers.shapeVertexCount[i]
-    const base = i * MAX_VERTICES_PER_SHAPE
-    const [c, negS, s] = mat2FromAngle(buffers.angle[i])
+    const sides = { triangle: 3, pentagon: 5, hexagon: 6 }[b.shape] || 4
+    const verts = regularPolygonVerts(sides, b.radius)
     ctx.beginPath()
-    for (let v = 0; v < count; v++) {
-      const lvx = buffers.shapeVerticesX[base + v]
-      const lvy = buffers.shapeVerticesY[base + v]
-      const wx = c * lvx + negS * lvy + px
-      const wy = s * lvx + c * lvy + py
+    for (let v = 0; v < verts.length; v++) {
+      const wx = cos * verts[v].x - sin * verts[v].y + px
+      const wy = sin * verts[v].x + cos * verts[v].y + py
       v === 0 ? ctx.moveTo(wx, wy) : ctx.lineTo(wx, wy)
     }
     ctx.closePath()
@@ -379,84 +386,128 @@ function drawShape(i, hit) {
   }
 }
 
-function getWorldContactPos(bodyIdx, localX, localY) {
-  const [c, negS, s] = mat2FromAngle(buffers.angle[bodyIdx])
-  return {
-    x: buffers.positionX[bodyIdx] + c * localX + negS * localY,
-    y: buffers.positionY[bodyIdx] + s * localX + c * localY,
-  }
+function drawContactPoints() {
+  if (!document.getElementById('showContacts').checked) return
+  let maxPen = 0
+  try {
+    maxPen = world.maxPenetration
+  } catch (e) { return }
+
+  // Draw contact indicators based on penetration severity
+  const penClass = maxPen > 2 ? '#f44' : maxPen > 0.5 ? '#ff4' : '#4f4'
+  ctx.fillStyle = penClass
+  ctx.font = '10px monospace'
+  ctx.fillText(`Max pen: ${maxPen.toFixed(3)}`, 10, H - 10)
 }
 
 function render() {
-  const bpMethod = document.getElementById('broadphase').value
-  const npMethod = document.getElementById('narrowphase').value
-  const showNormals = document.getElementById('showNormals').checked
-  const showContacts = document.getElementById('showContacts').checked
-
-  const t0 = performance.now()
-  const pairs = broadphase(buffers, bodyCount, bpMethod)
-  let manifolds = []
-  if (pairs.length > 0) {
-    manifolds = npMethod === 'gjk'
-      ? gjkNarrowphase(buffers, pairs)
-      : narrowphase(buffers, pairs)
-  }
-  const elapsed = performance.now() - t0
-
-  const hit = new Uint8Array(bodyCount)
-  for (const m of manifolds) { hit[m.bodyA] = 1; hit[m.bodyB] = 1 }
+  if (!world || bodies.length === 0) return
 
   ctx.clearRect(0, 0, W, H)
 
-  ctx.strokeStyle = 'rgba(255,200,60,0.15)'
-  ctx.lineWidth = 1
-  for (const p of pairs) {
-    ctx.beginPath()
-    ctx.moveTo(buffers.positionX[p.a], buffers.positionY[p.a])
-    ctx.lineTo(buffers.positionX[p.b], buffers.positionY[p.b])
-    ctx.stroke()
+  // Draw walls first
+  for (let i = 0; i < wallBodies.length; i++) {
+    const [px, py] = world.getBodyPosition(wallBodies[i])
+    const angle = world.getBodyAngle(wallBodies[i])
+    const b = bodyShapes[bodies.length + i]
+    if (!b) continue
+
+    ctx.fillStyle = 'rgba(255,255,255,0.03)'
+    ctx.strokeStyle = '#333'
+    ctx.lineWidth = 1
+
+    const cos = Math.cos(angle), sin = Math.sin(angle)
+    const hx = b.shape === 'floor' ? (px > W / 2 ? W / 2 + 20 : 10) : b.radius
+    const hy = b.shape === 'floor' ? 10 : (py > H / 2 ? H / 2 + 20 : 10)
+
+    // Simple wall rendering
+    ctx.fillRect(px - hx, py - hy, hx * 2, hy * 2)
+    ctx.strokeRect(px - hx, py - hy, hx * 2, hy * 2)
   }
 
-  for (let i = 0; i < bodyCount; i++) drawShape(i, hit[i])
+  // Draw bodies
+  for (let i = 0; i < bodies.length; i++) {
+    drawShape(i)
+  }
 
-  for (const m of manifolds) {
-    for (const contact of m.contacts) {
-      const wc = getWorldContactPos(m.bodyA, contact.localA.x, contact.localA.y)
+  // Show vertices
+  if (document.getElementById('showVertices').checked) {
+    ctx.fillStyle = '#ff0'
+    for (let i = 0; i < bodies.length; i++) {
+      const [px, py] = world.getBodyPosition(bodies[i])
+      const angle = world.getBodyAngle(bodies[i])
+      const b = bodyShapes[i]
+      const cos = Math.cos(angle), sin = Math.sin(angle)
 
-      if (showContacts) {
-        ctx.fillStyle = '#ffcc00'
-        ctx.beginPath()
-        ctx.arc(wc.x, wc.y, 4, 0, Math.PI * 2)
-        ctx.fill()
+      let verts
+      if (b.shape === 'circle') {
+        verts = []
+        for (let a = 0; a < 8; a++) {
+          const ang = (Math.PI * 2 * a) / 8
+          verts.push({ x: Math.cos(ang) * b.radius, y: Math.sin(ang) * b.radius })
+        }
+      } else if (b.shape === 'box') {
+        const s = b.radius * 1.2
+        verts = [{ x: -s, y: -s }, { x: s, y: -s }, { x: s, y: s }, { x: -s, y: s }]
+      } else {
+        const sides = { triangle: 3, pentagon: 5, hexagon: 6 }[b.shape] || 4
+        verts = regularPolygonVerts(sides, b.radius)
       }
-      if (showNormals) {
-        const len = 30
-        ctx.strokeStyle = 'rgba(255,100,100,0.7)'
-        ctx.lineWidth = 2
+
+      for (const v of verts) {
+        const wx = cos * v.x - sin * v.y + px
+        const wy = sin * v.x + cos * v.y + py
         ctx.beginPath()
-        ctx.moveTo(wc.x, wc.y)
-        ctx.lineTo(wc.x + m.normal.x * len, wc.y + m.normal.y * len)
-        ctx.stroke()
-        const ax = wc.x + m.normal.x * len
-        const ay = wc.y + m.normal.y * len
-        const perpX = -m.normal.y, perpY = m.normal.x
-        ctx.beginPath()
-        ctx.moveTo(ax, ay)
-        ctx.lineTo(ax - m.normal.x * 6 + perpX * 4, ay - m.normal.y * 6 + perpY * 4)
-        ctx.moveTo(ax, ay)
-        ctx.lineTo(ax - m.normal.x * 6 - perpX * 4, ay - m.normal.y * 6 - perpY * 4)
-        ctx.stroke()
+        ctx.arc(wx, wy, 3, 0, Math.PI * 2)
+        ctx.fill()
       }
     }
   }
 
-  return { elapsed, pairs: pairs.length, manifolds: manifolds.length }
+  drawContactPoints()
 }
 
 const WINDOW = 60
-const bpTimes = new Float64Array(WINDOW)
 const frameDts = new Float64Array(WINDOW)
 let ringIdx = 0, samplesFilled = 0
+let diagFrameCount = 0
+
+function updateDiagnostics() {
+  diagFrameCount++
+  let totalSpeed = 0, maxSpeed = 0
+  for (let i = 0; i < bodies.length; i++) {
+    const [vx, vy] = world.getBodyVelocity(bodies[i])
+    const s = Math.sqrt(vx * vx + vy * vy)
+    totalSpeed += s
+    if (s > maxSpeed) maxSpeed = s
+  }
+  const avgSpeed = totalSpeed / Math.max(1, bodies.length)
+
+  let contacts = 0, maxPen = 0, debugDump = ''
+  try {
+    contacts = world.contactPointCount
+    maxPen = world.maxPenetration
+    debugDump = world.debugDump
+  } catch (e) {}
+
+  const penClass = maxPen > 2 ? 'diag-err' : maxPen > 0.5 ? 'diag-warn' : 'diag-ok'
+
+  document.getElementById('diagSpeed').innerHTML =
+    `Avg: <span class="diag-val">${avgSpeed.toFixed(1)}</span> | Max: <span class="diag-val">${maxSpeed.toFixed(1)}</span>`
+  document.getElementById('diagContacts').innerHTML =
+    `Contacts: <span class="diag-val">${contacts}</span> | Pen: <span class="${penClass}">${maxPen.toFixed(4)}</span>`
+  document.getElementById('diagOverlap').innerHTML =
+    `<span style="color:#666">${debugDump}</span>`
+
+  document.getElementById('diagnostics').style.display = 'block'
+
+  if (diagFrameCount <= 5 || diagFrameCount % 60 === 0) {
+    console.log(
+      `[Frame ${diagFrameCount}] spd=${avgSpeed.toFixed(1)} maxSpd=${maxSpeed.toFixed(1)} ` +
+      `contacts=${contacts} pen=${maxPen.toFixed(4)} | ${debugDump}`
+    )
+  }
+}
 
 function avg(arr, filled) {
   let s = 0
@@ -470,52 +521,47 @@ function loop(ts) {
   const dt = last !== null ? ts - last : 0
   last = ts
 
-  if (dt > 0 && document.getElementById('animate').checked)
+  const t0 = performance.now()
+  if (dt > 0 && document.getElementById('animate').checked && world && bodies.length > 0)
     step(Math.min(dt / 1000, 0.05))
+  const elapsed = performance.now() - t0
 
-  const { elapsed, pairs, manifolds } = render()
+  render()
+  updateDiagnostics()
 
-  bpTimes[ringIdx] = elapsed
   frameDts[ringIdx] = dt > 0 ? dt : 16.67
   ringIdx = (ringIdx + 1) % WINDOW
   samplesFilled++
 
-  const avgBP = avg(bpTimes, samplesFilled)
   const avgDt = avg(frameDts, samplesFilled)
   const fps = avgDt > 0 ? 1000 / avgDt : 0
 
-  const bpMethod = document.getElementById('broadphase').value
-  const npMethod = document.getElementById('narrowphase').value
-  const bpLabel = bpMethod === 'sap' ? 'SAP' : 'BVH'
-  const npLabel = npMethod === 'sat' ? 'SAT' : 'GJK+EPA'
   document.getElementById('stats').textContent =
-    `${bpLabel} + ${npLabel} | ${bodyCount} bodies | ${pairs} pairs | ${manifolds} contacts` +
-    `  |  time: ${elapsed.toFixed(3)} ms  avg: ${avgBP.toFixed(3)} ms` +
-    `  |  fps: ${fps.toFixed(1)}`
+    `Rust/WASM | ${bodies.length} bodies | step: ${elapsed.toFixed(3)} ms | fps: ${fps.toFixed(1)}`
 
   requestAnimationFrame(loop)
 }
 
-function resetAll() { ringIdx = 0; samplesFilled = 0; init() }
+async function resetAll() { ringIdx = 0; samplesFilled = 0; await init() }
 document.getElementById('reset').addEventListener('click', resetAll)
 document.getElementById('bodyCount').addEventListener('change', resetAll)
-document.getElementById('shape').addEventListener('change', resetAll)
-document.getElementById('broadphase').addEventListener('change', () => { ringIdx = 0; samplesFilled = 0 })
-document.getElementById('narrowphase').addEventListener('change', () => { ringIdx = 0; samplesFilled = 0 })
+document.getElementById('scene').addEventListener('change', resetAll)
 
 const frictionSlider = document.getElementById('friction')
-const massSlider = document.getElementById('mass')
+const restitutionSlider = document.getElementById('restitution')
 const startSpeedSlider = document.getElementById('startSpeed')
 const frictionVal = document.getElementById('frictionVal')
-const massVal = document.getElementById('massVal')
+const restitutionVal = document.getElementById('restitutionVal')
 const startSpeedVal = document.getElementById('startSpeedVal')
 
 frictionSlider.addEventListener('input', () => { frictionVal.textContent = parseFloat(frictionSlider.value).toFixed(2) })
-massSlider.addEventListener('input', () => { massVal.textContent = parseFloat(massSlider.value).toFixed(1) })
+restitutionSlider.addEventListener('input', () => { restitutionVal.textContent = parseFloat(restitutionSlider.value).toFixed(2) })
 startSpeedSlider.addEventListener('input', () => { startSpeedVal.textContent = parseInt(startSpeedSlider.value) })
 
-init()
-requestAnimationFrame(loop)
+;(async function main() {
+  await init()
+  requestAnimationFrame(loop)
+})()
 </script>
 </body>
 </html>

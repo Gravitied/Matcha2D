@@ -6,16 +6,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./wasm/*": "./dist/wasm/*"
+    }
   },
   "scripts": {
-    "build": "tsup",
-    "build:wasm": "bash wasm/build.sh",
-    "build:all": "npm run build:wasm && npm run build",
-    "test": "vitest run"
+    "build": "tsup"
   },
   "dependencies": {
-    "@matcha2d/types": "*"
+    "@matcha2d/types": "*",
+    "@matcha2d/physics-rust": "*"
   }
 }

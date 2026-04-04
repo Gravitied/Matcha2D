@@ -1,0 +1,11 @@
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+import init, { initSync, PhysicsEngine } from '@matcha2d/physics-rust'
+
+// Load WASM synchronously for Node.js environment
+const wasmPath = resolve(__dirname, '../../physics-rust/pkg/matcha2d_physics_bg.wasm')
+const wasmBuffer = readFileSync(wasmPath)
+initSync(wasmBuffer)
+
+// Make init a no-op since we already initialized
+globalThis.__wasmInitialized = true

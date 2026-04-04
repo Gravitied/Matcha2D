@@ -25,7 +25,7 @@ const MIME_TYPES = {
 const server = http.createServer((req, res) => {
   let urlPath = req.url.split('?')[0]
   if (urlPath === '/' || urlPath === '/demo/') {
-    urlPath = '/demo/collision.html'
+    urlPath = '/demo/demo-hub.html'
   }
 
   const filePath = path.join(root, urlPath)

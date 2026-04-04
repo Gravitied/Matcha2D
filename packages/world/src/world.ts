@@ -1,6 +1,6 @@
-import type { MatchaBuffers, WorldConfig, PhysicsBackend, BodyHandle, ShapeType, CollisionCallbacks } from '@matcha2d/types'
-import { createBuffers, DEFAULT_WORLD_CONFIG, BodyFlags, BodyType } from '@matcha2d/types'
-import { integrate, solveVelocity, solvePosition, collide, DynamicTree, ContactTracker, WasmPhysicsBackend } from '@matcha2d/core'
+import type { WorldConfig, BodyHandle, CollisionCallbacks } from '@matcha2d/types'
+import { DEFAULT_WORLD_CONFIG } from '@matcha2d/types'
+import init, { PhysicsEngine } from '@matcha2d/physics-rust'
 
 export interface BodyDef {
   positionX?: number
@@ -8,150 +8,231 @@ export interface BodyDef {
   velocityX?: number
   velocityY?: number
   angle?: number
-  angularVel?: number
-  type?: BodyType
-  shapeType?: ShapeType
+  type?: 'dynamic' | 'static' | 'kinematic'
+  /** Collision group bitfield (which groups this body belongs to). Default: all bits set. */
+  collisionGroups?: number
+  /** Collision mask bitfield (which groups this body can collide with). Default: all bits set. */
+  collisionMask?: number
+}
+
+export interface ColliderDef {
+  shape: 'ball' | 'cuboid' | 'polygon'
+  radius?: number
   halfExtentX?: number
   halfExtentY?: number
-  radius?: number
-  mass?: number
+  vertices?: Array<{ x: number; y: number }>
   friction?: number
   restitution?: number
+  sensor?: boolean
 }
 
 export class World {
   readonly config: WorldConfig
-  readonly buffers: MatchaBuffers
-  private _bodyCount = 0
-  private _tree: DynamicTree
-  private _contactTracker: ContactTracker
+  private _engine: PhysicsEngine
   private _accumulator = 0
-  private _callbacks: CollisionCallbacks | null = null
-  private _backend: PhysicsBackend | null = null
-  private _wasmBackend: WasmPhysicsBackend | null = null
+  private _bodyHandles: Map<number, BodyHandle> = new Map()
+  private _nextBodyId = 0
 
-  constructor(config: Partial<WorldConfig> = {}) {
-    this.config = { ...DEFAULT_WORLD_CONFIG, ...config }
-    this.buffers = createBuffers(this.config.maxBodies)
-    this._tree = new DynamicTree()
-    this._contactTracker = new ContactTracker()
+  private constructor(engine: PhysicsEngine, config: WorldConfig) {
+    this._engine = engine
+    this.config = config
   }
 
   /**
-   * Create a World using the TypeScript physics backend (default).
-   * Uses the built-in collide/solve/integrate functions from @matcha2d/core.
+   * Create a World with the WASM physics engine.
+   * This is async because the WASM module must be loaded first.
    */
-  static createWithTS(config: Partial<WorldConfig> = {}): World {
-    return new World(config)
-    // TS backend uses standalone functions — no backend instance needed
-  }
-
-  /**
-   * Create a World using the WASM physics backend.
-   *
-   * The WASM backend must be initialized before the first simulation step.
-   * Call `await world.initWasmBackend()` after creating the world.
-   *
-   * Example:
-   *   const world = await World.createWithWasm({ gravity: { x: 0, y: -9.81 } })
-   *   world.step(1 / 60)
-   */
-  static async createWithWasm(config: Partial<WorldConfig> = {}): Promise<World> {
-    const world = new World(config)
-    world._wasmBackend = new WasmPhysicsBackend()
-    await world._wasmBackend.init(world.config)
-    world._backend = world._wasmBackend
-    return world
-  }
-
-  /**
-   * Create a World with a custom PhysicsBackend implementation.
-   */
-  static createWithBackend(backend: PhysicsBackend, config: Partial<WorldConfig> = {}): World {
-    const world = new World(config)
-    world._backend = backend
-    return world
-  }
-
-  get bodyCount(): number {
-    return this._bodyCount
+  static async create(config: Partial<WorldConfig> = {}): Promise<World> {
+    await init()
+    const merged = { ...DEFAULT_WORLD_CONFIG, ...config }
+    const engine = new PhysicsEngine()
+    engine.set_gravity(merged.gravity.x, merged.gravity.y)
+    engine.set_dt(merged.fixedTimestep)
+    engine.set_swept_broadphase(merged.sweptBroadphase)
+    engine.set_sleep_thresholds(
+      merged.sleepVelocityThreshold,
+      merged.sleepAngularVelocityThreshold,
+      merged.sleepTimeThreshold,
+    )
+    engine.set_solver_config(
+      merged.velocityIterations,
+      1,
+      merged.positionIterations,
+      merged.warmStarting ? 1.0 : 0.0,
+      merged.blockSolver,
+    )
+    engine.set_position_correction(merged.baumgarteFactor, merged.maxCorrectiveVelocity ?? 10.0)
+    return new World(engine, merged)
   }
 
   /** Create a new body with the given properties. */
   createBody(def: BodyDef = {}): BodyHandle {
-    const handle = this._bodyCount as BodyHandle
-    const idx = this._bodyCount
+    const x = def.positionX ?? 0
+    const y = def.positionY ?? 0
+    const bodyType = def.type ?? 'dynamic'
 
-    this.buffers.positionX[idx] = def.positionX ?? 0
-    this.buffers.positionY[idx] = def.positionY ?? 0
-    this.buffers.velocityX[idx] = def.velocityX ?? 0
-    this.buffers.velocityY[idx] = def.velocityY ?? 0
-    this.buffers.angle[idx] = def.angle ?? 0
-    this.buffers.angularVel[idx] = def.angularVel ?? 0
-    this.buffers.shapeType[idx] = def.shapeType ?? 0
-
-    if (def.halfExtentX !== undefined) this.buffers.halfExtentX[idx] = def.halfExtentX
-    if (def.halfExtentY !== undefined) this.buffers.halfExtentY[idx] = def.halfExtentY
-    if (def.radius !== undefined) this.buffers.shapeRadius[idx] = def.radius
-
-    const type = def.type ?? BodyType.Dynamic
-    const mass = def.mass ?? (type === BodyType.Static ? 0 : 1)
-    const invMass = type === BodyType.Static ? 0 : (mass > 0 ? 1 / mass : 0)
-
-    this.buffers.mass[idx] = mass
-    this.buffers.invMass[idx] = invMass
-
-    const hx = def.halfExtentX ?? (def.shapeType === 0 ? 0.5 : 0)
-    const hy = def.halfExtentY ?? (def.shapeType === 0 ? 0.5 : 0)
-    const radius = def.radius ?? (def.shapeType === 1 ? 0.5 : 0)
-
-    if (type === BodyType.Static) {
-      this.buffers.inertia[idx] = 0
-      this.buffers.invInertia[idx] = 0
-    } else if (def.shapeType === 1) {
-      const inertia = 0.5 * mass * radius * radius
-      this.buffers.inertia[idx] = inertia
-      this.buffers.invInertia[idx] = invMass > 0 ? 1 / inertia : 0
-    } else {
-      const inertia = (mass * (hx * hx + hy * hy)) / 3
-      this.buffers.inertia[idx] = inertia
-      this.buffers.invInertia[idx] = invMass > 0 ? 1 / inertia : 0
+    let handle: number
+    switch (bodyType) {
+      case 'static':
+        handle = this._engine.create_static_body(x, y)
+        break
+      case 'kinematic':
+        handle = this._engine.create_kinematic_body(x, y)
+        break
+      default:
+        handle = this._engine.create_dynamic_body(x, y)
+        break
     }
 
-    let flags = BodyFlags.ACTIVE
-    if (type === BodyType.Static) flags |= BodyFlags.STATIC
-    this.buffers.flags[idx] = flags
+    if (def.velocityX !== undefined || def.velocityY !== undefined) {
+      this._engine.set_body_velocity(handle, def.velocityX ?? 0, def.velocityY ?? 0)
+    }
+    if (def.angle !== undefined) {
+      this._engine.set_body_angle(handle, def.angle)
+    }
+    if (def.collisionGroups !== undefined) {
+      this._engine.set_body_collision_groups(handle, def.collisionGroups)
+    }
+    if (def.collisionMask !== undefined) {
+      this._engine.set_body_collision_mask(handle, def.collisionMask)
+    }
 
-    this._tree.insert(idx, this.buffers)
-    this._bodyCount++
-
-    return handle
+    return handle as unknown as BodyHandle
   }
 
-  /** Destroy a body and remove it from the tree. */
+  /** Destroy a body. */
   destroyBody(handle: BodyHandle): void {
-    const idx = handle as number
-    if (idx >= this._bodyCount) return
-
-    this._tree.remove(idx)
-    this.buffers.flags[idx] = 0
+    this._engine.remove_body(handle as unknown as number)
   }
 
-  /** Set collision callbacks for begin/stay/end contact events. */
-  setCollisionCallbacks(callbacks: CollisionCallbacks | null): void {
-    this._callbacks = callbacks
-    this._contactTracker.setCallbacks(callbacks)
+  /** Add a collider to a body. */
+  addCollider(body: BodyHandle, def: ColliderDef): number {
+    const bodyHandle = body as unknown as number
+
+    let colliderHandle: number
+    switch (def.shape) {
+      case 'ball':
+        colliderHandle = this._engine.create_ball_collider(def.radius ?? 0.5, bodyHandle)
+        break
+      case 'cuboid':
+        colliderHandle = this._engine.create_box_collider(
+          def.halfExtentX ?? 0.5,
+          def.halfExtentY ?? 0.5,
+          bodyHandle,
+        )
+        break
+      case 'polygon':
+        if (def.vertices && def.vertices.length > 0) {
+          const vx = new Float32Array(def.vertices.map(v => v.x))
+          const vy = new Float32Array(def.vertices.map(v => v.y))
+          colliderHandle = this._engine.create_polygon_collider(vx, vy, bodyHandle)
+        } else {
+          // Fallback to cuboid
+          colliderHandle = this._engine.create_box_collider(0.5, 0.5, bodyHandle)
+        }
+        break
+      default:
+        colliderHandle = this._engine.create_ball_collider(0.5, bodyHandle)
+        break
+    }
+
+    if (def.friction !== undefined) {
+      this._engine.set_collider_friction(colliderHandle, def.friction)
+    }
+    if (def.restitution !== undefined) {
+      this._engine.set_collider_restitution(colliderHandle, def.restitution)
+    }
+    if (def.sensor !== undefined) {
+      this._engine.set_collider_sensor(colliderHandle, def.sensor)
+    }
+
+    return colliderHandle
   }
 
-  /**
-   * Step the simulation by the given delta time.
-   * Uses a fixed-timestep accumulator with interpolation alpha.
-   */
+  /** Set body position. */
+  setBodyPosition(handle: BodyHandle, x: number, y: number): void {
+    this._engine.set_body_position(handle as unknown as number, x, y)
+  }
+
+  /** Set body velocity. */
+  setBodyVelocity(handle: BodyHandle, vx: number, vy: number): void {
+    this._engine.set_body_velocity(handle as unknown as number, vx, vy)
+  }
+
+  /** Set body angle. */
+  setBodyAngle(handle: BodyHandle, angle: number): void {
+    this._engine.set_body_angle(handle as unknown as number, angle)
+  }
+
+  /** Set gravity (affects all dynamic bodies). */
+  setGravity(x: number, y: number): void {
+    this._engine.set_gravity(x, y)
+    this.config.gravity = { x, y }
+  }
+
+  /** Set collision groups (bitfield) for a body. */
+  setCollisionGroups(handle: BodyHandle, groups: number): void {
+    this._engine.set_body_collision_groups(handle as unknown as number, groups)
+  }
+
+  /** Set collision mask (who this body collides with) for a body. */
+  setCollisionMask(handle: BodyHandle, mask: number): void {
+    this._engine.set_body_collision_mask(handle as unknown as number, mask)
+  }
+
+  /** Wake a body from sleep so it participates in physics. */
+  wakeBody(handle: BodyHandle): void {
+    this._engine.wake_body(handle as unknown as number)
+  }
+
+  /** Force a body to sleep (stop simulating). */
+  sleepBody(handle: BodyHandle): void {
+    this._engine.sleep_body(handle as unknown as number)
+  }
+
+  /** Check if a body is currently sleeping. */
+  isBodySleeping(handle: BodyHandle): boolean {
+    return this._engine.is_body_sleeping(handle as unknown as number)
+  }
+
+  /** Get body position as [x, y]. */
+  getBodyPosition(handle: BodyHandle): [number, number] {
+    const pos = this._engine.get_body_position(handle as unknown as number)
+    return [pos[0], pos[1]]
+  }
+
+  /** Get body velocity as [vx, vy]. */
+  getBodyVelocity(handle: BodyHandle): [number, number] {
+    const vel = this._engine.get_body_velocity(handle as unknown as number)
+    return [vel[0], vel[1]]
+  }
+
+  /** Get body angle in radians. */
+  getBodyAngle(handle: BodyHandle): number {
+    return this._engine.get_body_angle(handle as unknown as number)
+  }
+
+  /** Set body angular velocity. */
+  setBodyAngularVelocity(handle: BodyHandle, angvel: number): void {
+    this._engine.set_body_angular_velocity(handle as unknown as number, angvel)
+  }
+
+  /** Get body angular velocity in rad/s. */
+  getBodyAngularVelocity(handle: BodyHandle): number {
+    return this._engine.get_body_angular_velocity(handle as unknown as number)
+  }
+
+  /** Apply an impulse to a body. */
+  applyImpulse(handle: BodyHandle, fx: number, fy: number): void {
+    this._engine.apply_impulse(handle as unknown as number, fx, fy)
+  }
+
+  /** Step the simulation by the given delta time. */
   step(dt: number): void {
     this._accumulator += dt
 
     while (this._accumulator >= this.config.fixedTimestep) {
-      this._physicsStep(this.config.fixedTimestep)
+      this._engine.step()
       this._accumulator -= this.config.fixedTimestep
     }
   }
@@ -161,42 +242,67 @@ export class World {
     return this._accumulator / this.config.fixedTimestep
   }
 
-  private _physicsStep(dt: number): void {
-    if (this._backend) {
-      // Backend-driven simulation (WASM or custom backend)
-      // The backend handles the full pipeline internally.
-      // collide() returns manifolds for event reporting.
-      // solveVelocity/integrate/solvePosition are no-ops in WASM mode
-      // (Box2D handles everything during step).
-      const manifolds = this._backend.collide(
-        this.buffers,
-        this._bodyCount,
-        this.config.broadphaseMethod,
-        this.config.narrowphaseMethod,
-      )
-      this._backend.solveVelocity(this.buffers, manifolds, this.config)
-      this._backend.integrate(this.buffers, this._bodyCount, dt, this.config.gravity)
-      this._backend.solvePosition(this.buffers, manifolds, this.config)
+  /** Get all body positions X coordinates. */
+  getPositionsX(): Float32Array {
+    return this._engine.get_positions_x()
+  }
 
-      this._contactTracker.update(manifolds, this.config)
-    } else {
-      // TypeScript standalone simulation (default)
-      integrate(this.buffers, this._bodyCount, dt, this.config.gravity)
+  /** Get all body positions Y coordinates. */
+  getPositionsY(): Float32Array {
+    return this._engine.get_positions_y()
+  }
 
-      this._tree.updateAll(this.buffers)
+  /** Get all body angles. */
+  getAngles(): Float32Array {
+    return this._engine.get_angles()
+  }
 
-      const manifolds = collide(
-        this.buffers,
-        this._bodyCount,
-        this._tree,
-        this.config.broadphaseMethod,
-        this.config.narrowphaseMethod,
-      )
+  /** Get the number of bodies. */
+  get bodyCount(): number {
+    return this._engine.body_count()
+  }
 
-      solveVelocity(this.buffers, manifolds, this.config)
-      solvePosition(this.buffers, manifolds, this.config)
+  /** Get the number of colliders. */
+  get colliderCount(): number {
+    return this._engine.collider_count()
+  }
 
-      this._contactTracker.update(manifolds, this.config)
-    }
+  /** Set collision callbacks (placeholder for future contact event support). */
+  setCollisionCallbacks(_callbacks: CollisionCallbacks | null): void {
+    // Contact events will be implemented when the Rust contact tracker
+    // exports begin/stay/end contact data
+  }
+
+  /** Access the underlying physics engine (for advanced use). */
+  get engine(): PhysicsEngine {
+    return this._engine
+  }
+
+  // ========== Diagnostics ==========
+
+  /** Number of active contact pairs this frame. */
+  get contactPairCount(): number {
+    return this._engine.contact_pair_count()
+  }
+
+  /** Total contact points across all pairs this frame. */
+  get contactPointCount(): number {
+    return this._engine.contact_point_count()
+  }
+
+  /** Maximum penetration depth across all contacts this frame. */
+  get maxPenetration(): number {
+    return this._engine.max_penetration()
+  }
+
+  /** Contact normal of the first active pair (or [0,0] if none). */
+  get firstContactNormal(): [number, number] {
+    const n = this._engine.first_contact_normal()
+    return [n[0], n[1]]
+  }
+
+  /** Full debug dump string for the current frame state. */
+  get debugDump(): string {
+    return this._engine.debug_dump()
   }
 }

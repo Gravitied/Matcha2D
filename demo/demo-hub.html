@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Matcha2D — Demo Hub</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #111; color: #eee; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 40px; gap: 24px; }
+    h1 { font-size: 24px; color: #a8d5a2; letter-spacing: 3px; }
+    .subtitle { font-size: 13px; color: #666; }
+    .cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+    .card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 24px; width: 280px; display: flex; flex-direction: column; gap: 12px; transition: border-color 0.2s; }
+    .card:hover { border-color: #a8d5a2; }
+    .card h2 { font-size: 15px; letter-spacing: 1px; }
+    .card h2.green { color: #a8d5a2; }
+    .card h2.red { color: #d5a8a8; }
+    .card h2.blue { color: #a8c5d5; }
+    .card p { font-size: 12px; color: #888; line-height: 1.5; }
+    .card a { display: inline-block; background: #222; color: #eee; border: 1px solid #444; padding: 6px 14px; text-decoration: none; font-size: 12px; font-family: monospace; transition: background 0.2s; align-self: flex-start; }
+    .card a:hover { background: #333; }
+    .engine-tag { font-size: 10px; padding: 2px 6px; border-radius: 3px; align-self: flex-start; }
+    .tag-matcha { background: rgba(168,213,162,0.15); color: #a8d5a2; }
+    .tag-rapier { background: rgba(213,168,168,0.15); color: #d5a8a8; }
+    .tag-both { background: rgba(168,197,213,0.15); color: #a8c5d5; }
+  </style>
+</head>
+<body>
+  <h1>Matcha2D</h1>
+  <div class="subtitle">High-performance 2D physics engine demos</div>
+
+  <div class="cards">
+    <div class="card">
+      <span class="engine-tag tag-matcha">Matcha2D Engine</span>
+      <h2 class="green">Collision Demo</h2>
+      <p>
+        The primary Matcha2D demo running the Rust/WASM physics engine.
+        Tests collision detection with circles, boxes, and convex polygons.
+        Zero-gravity wall-bouncing scenario.
+      </p>
+      <a href="/demo/collision.html">Open Demo</a>
+    </div>
+
+    <div class="card">
+      <span class="engine-tag tag-rapier">Rapier (Blueprint)</span>
+      <h2 class="red">Blueprint Demo</h2>
+      <p>
+        The same collision scenario running on the Rapier physics engine
+        (Matcha2D_Blueprint reference). Used to compare physics behavior
+        and identify differences.
+      </p>
+      <a href="/demo/blueprint.html">Open Demo</a>
+    </div>
+
+    <div class="card">
+      <span class="engine-tag tag-both">Both Engines</span>
+      <h2 class="blue">Side-by-Side</h2>
+      <p>
+        Run both engines simultaneously with identical starting conditions.
+        Uses seeded randomness so both see the exact same body positions,
+        velocities, and shapes.
+      </p>
+      <a href="/demo/compare.html">Open Demo</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,259 @@
+﻿cargo :    Compiling matcha2d-physics v0.1.0 (C:\Users\winsi\Projects\Matcha2D\packages\physics-rust)
+At line:1 char:1
++ cargo test test_stacking_stability -- --nocapture 2>&1 | Out-File -Fi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling ma...s\physics-rust):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: unused import: `crate::math::Vec2`
+   --> src\bvh.rs:482:9
+    |
+482 |     use crate::math::Vec2;
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `inertia`
+   --> src\collider.rs:349:20
+    |
+349 |         let (mass, inertia) = cuboid.compute_mass_properties(1.0);
+    |                    ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_inertia`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `b2`
+   --> src\world.rs:681:13
+    |
+681 |         let b2 = world.create_static_body(0.0, -5.0);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_b2`
+
+warning: unused variable: `pos_before`
+   --> src\world.rs:721:17
+    |
+721 |             let pos_before = world.get_body_position(dynamic_body);
+    |                 ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_pos_before`
+
+warning: associated items `from_center_half_extents`, `center`, and `half_extents` are never used
+  --> src\aabb.rs:24:12
+   |
+ 9 | impl AABB {
+   | --------- associated items in this implementation
+...
+24 |     pub fn from_center_half_extents(center: Vec2, half_extents: Vec2) -> Self {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+68 |     pub fn center(self) -> Vec2 {
+   |            ^^^^^^
+...
+73 |     pub fn half_extents(self) -> Vec2 {
+   |            ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: multiple associated items are never used
+   --> src\body.rs:185:12
+    |
+178 | impl RigidBodyBuilder {
+    | --------------------- associated items in this implementation
+...
+185 |     pub fn static_body(pos: Vec2) -> Self {
+    |            ^^^^^^^^^^^
+...
+191 |     pub fn kinematic(pos: Vec2) -> Self {
+    |            ^^^^^^^^^
+...
+202 |     pub fn angvel(mut self, v: f32) -> Self {
+    |            ^^^^^^
+...
+212 |     pub fn inertia(mut self, i: f32) -> Self {
+    |            ^^^^^^^
+...
+217 |     pub fn gravity_scale(mut self, s: f32) -> Self {
+    |            ^^^^^^^^^^^^^
+...
+222 |     pub fn linear_damping(mut self, d: f32) -> Self {
+    |            ^^^^^^^^^^^^^^
+...
+227 |     pub fn angular_damping(mut self, d: f32) -> Self {
+    |            ^^^^^^^^^^^^^^^
+...
+232 |     pub fn user_data(mut self, data: u32) -> Self {
+    |            ^^^^^^^^^
+...
+237 |     pub fn collision_groups(mut self, groups: u32) -> Self {
+    |            ^^^^^^^^^^^^^^^^
+...
+242 |     pub fn collision_mask(mut self, mask: u32) -> Self {
+    |            ^^^^^^^^^^^^^^
+...
+247 |     pub fn sleeping(mut self, sleeping: bool) -> Self {
+    |            ^^^^^^^^
+
+warning: methods `query_point`, `compute_height`, `node_count`, and `clear` are never used
+   --> src\bvh.rs:405:12
+    |
+ 35 | impl DynamicBvh {
+    | --------------- methods in this implementation
+...
+405 |     pub fn query_point(&self, point: crate::math::Vec2) -> Vec<ColliderHandle> {
+    |            ^^^^^^^^^^^
+...
+454 |     pub fn compute_height(&self) -> usize {
+    |            ^^^^^^^^^^^^^^
+...
+461 |     pub fn node_count(&self) -> usize {
+    |            ^^^^^^^^^^
+...
+465 |     pub fn clear(&mut self) {
+    |            ^^^^^
+
+warning: methods `sensor`, `restitution`, `density`, `position`, and `user_data` are never used
+   --> src\collider.rs:205:12
+    |
+177 | impl ColliderBuilder {
+    | -------------------- methods in this implementation
+...
+205 |     pub fn sensor(mut self) -> Self {
+    |            ^^^^^^
+...
+215 |     pub fn restitution(mut self, r: f32) -> Self {
+    |            ^^^^^^^^^^^
+...
+220 |     pub fn density(mut self, d: f32) -> Self {
+    |            ^^^^^^^
+...
+225 |     pub fn position(mut self, pos: Vec2) -> Self {
+    |            ^^^^^^^^
+...
+235 |     pub fn user_data(mut self, data: u32) -> Self {
+    |            ^^^^^^^^^
+
+warning: method `body_index` is never used
+   --> src\world.rs:613:8
+    |
+ 37 | impl PhysicsWorld {
+    | ----------------- method in this implementation
+...
+613 |     fn body_index(&self, handle: RigidBodyHandle) -> Option<usize> {
+    |        ^^^^^^^^^^
+
+warning: `matcha2d-physics` (lib test) generated 9 warnings (run `cargo fix --lib -p matcha2d-physics --tests` to 
+apply 4 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.82s
+     Running unittests src\lib.rs (target\debug\deps\matcha2d_physics-55ccf367891e766b.exe)
+
+running 1 test
+Body 0 type=Static mass=0 inv_mass=0 inertia=0 inv_inertia=0
+Body 1 type=Dynamic mass=1 inv_mass=1 inertia=0.16666667 inv_inertia=6
+Body 2 type=Dynamic mass=1 inv_mass=1 inertia=0.16666667 inv_inertia=6
+Body 3 type=Dynamic mass=1 inv_mass=1 inertia=0.16666667 inv_inertia=6
+Step 0 max_y=2.497275
+  Body 0 pos=(0, -0.5) vel=(0, 0) angvel=0
+  Body 1 pos=(0, 0.497275) vel=(0, -0.16350001) angvel=0
+  Body 2 pos=(0, 1.497275) vel=(0, -0.16350001) angvel=0
+  Body 3 pos=(0, 2.497275) vel=(0, -0.16350001) angvel=0
+  Contacts: 0 pairs
+Step 1 max_y=2.491825
+  Body 0 pos=(0, -0.5) vel=(0, 0) angvel=0
+  Body 1 pos=(0, 0.49182498) vel=(0, -0.32700002) angvel=0
+  Body 2 pos=(0, 1.491825) vel=(0, -0.32700002) angvel=0
+  Body 3 pos=(0, 2.491825) vel=(0, -0.32700002) angvel=0
+  Contacts: 1 pairs
+    Pair ColliderHandle(0)-ColliderHandle(1) normal=(-0, 1) contacts=2
+      local_a=(-0.5, 0.497275) local_b=(-0.5, -0.5) pen=0.0027250051
+      local_a=(0.5, 0.497275) local_b=(0.5, -0.5) pen=0.0027250051
+Step 2 max_y=2.4836502
+  Body 0 pos=(0, -0.5) vel=(0, 0) angvel=0
+  Body 1 pos=(0, 0.48611748) vel=(0, -0.34245035) angvel=0
+  Body 2 pos=(0, 1.48365) vel=(0, -0.49050003) angvel=0
+  Body 3 pos=(0, 2.4836502) vel=(0, -0.49050003) angvel=0
+  Contacts: 1 pairs
+    Pair ColliderHandle(0)-ColliderHandle(1) normal=(-0, 1) contacts=2
+      local_a=(-0.5, 0.49182498) local_b=(-0.5, -0.5) pen=0.008175015
+      local_a=(0.5, 0.49182498) local_b=(0.5, -0.5) pen=0.008175015
+Step 3 max_y=2.4727502
+  Body 0 pos=(0, -0.5) vel=(0, 0) angvel=0
+  Body 1 pos=(0, 0.4945167) vel=(0, 2.399898) angvel=0
+  Body 2 pos=(0, 1.47275) vel=(0, -0.65400004) angvel=0
+  Body 3 pos=(0, 2.4727502) vel=(0, -0.65400004) angvel=0
+  Contacts: 2 pairs
+    Pair ColliderHandle(0)-ColliderHandle(1) normal=(-0, 1) contacts=2
+      local_a=(-0.5, 0.48611748) local_b=(-0.5, -0.5) pen=0.013882518
+      local_a=(0.5, 0.48611748) local_b=(0.5, -0.5) pen=0.013882518
+    Pair ColliderHandle(1)-ColliderHandle(2) normal=(-0, 1) contacts=2
+      local_a=(-0.5, 0.4975325) local_b=(-0.5, -0.5) pen=0.002467513
+      local_a=(0.5, 0.4975325) local_b=(0.5, -0.5) pen=0.002467513
+Step 4 max_y=2.4591253
+  Body 0 pos=(0, -0.5) vel=(0, 0) angvel=0
+  Body 1 pos=(0, 0.45407385) vel=(0, -11.506539) angvel=0
+  Body 2 pos=(0, 1.5165274) vel=(0, 11.706615) angvel=0
+  Body 3 pos=(0, 2.4591253) vel=(0, -0.81750005) angvel=0
+  Contacts: 2 pairs
+    Pair ColliderHandle(0)-ColliderHandle(1) normal=(-0, 1) contacts=2
+      local_a=(-0.5, 0.4945167) local_b=(-0.5, -0.5) pen=0.0054832995
+      local_a=(0.5, 0.4945167) local_b=(0.5, -0.5) pen=0.0054832995
+    Pair ColliderHandle(1)-ColliderHandle(2) normal=(-0, 1) contacts=2
+      local_a=(-0.5, 0.47823325) local_b=(-0.5, -0.5) pen=0.021766782
+      local_a=(0.5, 0.47823325) local_b=(0.5, -0.5) pen=0.021766782
+writeback body 1: lin=(0, -141.72215) ang=0 pose=(0, 0.74253184)
+writeback body 2: lin=(0, 172.83072) ang=0 pose=(0, 2.5100458)
+BAD VEL body 1: lin=(0, -141.88565) ang=0
+BAD VEL body 2: lin=(0, 171.00056) ang=0
+BAD VEL body 1: lin=(0, -141.88565) ang=0
+BAD VEL body 2: lin=(0, 168.45451) ang=0
+BAD VEL body 1: lin=(0, -141.88565) ang=0
+BAD VEL body 2: lin=(0, 164.56505) ang=0
+BAD VEL body 1: lin=(0, -141.88565) ang=0
+BAD VEL body 2: lin=(0, 158.62334) ang=0
+writeback body 1: lin=(0, -141.88565) ang=0 pose=(0, -1.6222291)
+writeback body 2: lin=(0, 127.16507) ang=0 pose=(0, 5.1537685)
+BAD VEL body 1: lin=(0, -142.04915) ang=0
+BAD VEL body 2: lin=(0, 127.00157) ang=0
+BAD VEL body 1: lin=(0, -142.04915) ang=0
+BAD VEL body 2: lin=(0, 127.00157) ang=0
+BAD VEL body 1: lin=(0, -142.04915) ang=0
+BAD VEL body 2: lin=(0, 127.00157) ang=0
+BAD VEL body 1: lin=(0, -142.04915) ang=0
+BAD VEL body 2: lin=(0, 127.00157) ang=0
+writeback body 1: lin=(0, -142.04915) ang=0 pose=(0, -3.989715)
+writeback body 2: lin=(0, 127.00157) ang=0 pose=(0, 7.2704616)
+BAD VEL body 1: lin=(0, -142.21265) ang=0
+BAD VEL body 2: lin=(0, 126.83807) ang=0
+BAD VEL body 1: lin=(0, -142.21265) ang=0
+BAD VEL body 2: lin=(0, 126.83807) ang=0
+BAD VEL body 1: lin=(0, -142.21265) ang=0
+BAD VEL body 2: lin=(0, 126.83807) ang=0
+BAD VEL body 1: lin=(0, -142.21265) ang=0
+BAD VEL body 2: lin=(0, 126.83807) ang=0
+writeback body 1: lin=(0, -142.21265) ang=0 pose=(0, -6.359926)
+writeback body 2: lin=(0, 126.83807) ang=0 pose=(0, 9.38443)
+BAD VEL body 1: lin=(0, -142.37614) ang=0
+BAD VEL body 2: lin=(0, 126.674576) ang=0
+BAD VEL body 1: lin=(0, -142.37614) ang=0
+BAD VEL body 2: lin=(0, 126.674576) ang=0
+BAD VEL body 1: lin=(0, -142.37614) ang=0
+BAD VEL body 2: lin=(0, 126.674576) ang=0
+BAD VEL body 1: lin=(0, -142.37614) ang=0
+BAD VEL body 2: lin=(0, 126.674576) ang=0
+writeback body 1: lin=(0, -142.37614) ang=0 pose=(0, -8.732862)
+writeback body 2: lin=(0, 126.674576) ang=0 pose=(0, 11.495673)
+Step 12 max_y=11.495673
+  Body 0 pos=(0, -0.5) vel=(0, 0) angvel=0
+  Body 1 pos=(0, -8.732862) vel=(0, -142.37614) angvel=0
+  Body 2 pos=(0, 11.495673) vel=(0, 126.674576) angvel=0
+  Body 3 pos=(0, 6.946907) vel=(0, 61.977337) angvel=0
+  Contacts: 0 pairs
+
+thread 'world::tests::test_stacking_stability' (26504) panicked at src\world.rs:1094:13:
+Box 1 fell through floor! y = -8.732862
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test world::tests::test_stacking_stability ... FAILED
+
+failures:
+
+failures:
+    world::tests::test_stacking_stability
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

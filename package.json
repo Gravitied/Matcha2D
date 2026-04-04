@@ -6,7 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w packages/types && npm run build -w packages/core && npm run build --workspaces --if-present",
+    "build:wasm": "npm run build -w packages/physics-rust",
+    "build": "npm run build:wasm && npm run build -w packages/types && npm run build -w packages/core && npm run build -w packages/world && npm run build --workspaces --if-present --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc -b",
@@ -14,6 +15,8 @@
     "dev": "node server.js"
   },
   "devDependencies": {
+    "@dimforge/rapier2d-compat": "^0.19.3",
+    "@types/node": "^25.5.0",
     "tsup": "^8.3.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

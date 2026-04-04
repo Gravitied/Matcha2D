@@ -8,4 +8,5 @@ export default defineConfig({
   clean: true,
   target: 'es2017',
   treeshake: true,
+  external: ['@matcha2d/physics-rust'],
 })

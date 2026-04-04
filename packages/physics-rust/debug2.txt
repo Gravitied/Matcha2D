@@ -1,0 +1,21 @@
+﻿cargo :    Compiling matcha2d-physics v0.1.0 (C:\Users\winsi\Projects\Matcha2D\packages\physics-rust)
+At line:1 char:1
++ cargo test test_stacking_stability -- --nocapture 2>&1 | Out-File -Fi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling ma...s\physics-rust):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+error: unexpected closing delimiter: `}`
+   --> src\contact_constraint.rs:428:5
+    |
+365 |     pub fn solve(&mut self, solver_bodies: &mut SolverBodySet, block_solver: bool) {
+    |                                                                                    - this delimiter might not be 
+properly closed...
+...
+411 |             }
+    |             - ...as it matches this but it has different indentation
+...
+428 |     }
+    |     ^ unexpected closing delimiter
+
+error: could not compile `matcha2d-physics` (lib test) due to 1 previous error

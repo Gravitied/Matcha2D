@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Matcha2D — Side-by-Side Comparison</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #111; color: #eee; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 10px; }
+    h1 { font-size: 16px; letter-spacing: 2px; }
+    h1 a { text-decoration: none; }
+    h1 a:hover { text-decoration: underline; }
+    h1 .matcha { color: #a8d5a2; }
+    h1 .rapier { color: #d5a8a8; }
+    h1 .sep { color: #666; }
+    #controls { display: flex; gap: 12px; align-items: center; font-size: 13px; flex-wrap: wrap; justify-content: center; }
+    label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    select, button { background: #222; color: #eee; border: 1px solid #444; padding: 4px 10px; font-family: monospace; cursor: pointer; }
+    button:hover { background: #333; }
+    input[type="range"] { width: 70px; accent-color: #a8d5a2; }
+    .slider-val { min-width: 28px; text-align: right; color: #a8d5a2; }
+    .slider-group { display: flex; align-items: center; gap: 4px; }
+    #viewport { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .engine-panel { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .engine-label { font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+    .engine-label.matcha { color: #a8d5a2; }
+    .engine-label.rapier { color: #d5a8a8; }
+    canvas { border: 1px solid #333; }
+    .stats { font-size: 11px; color: #888; min-height: 1.4em; text-align: center; }
+    #loading { color: #a8d5a2; font-size: 14px; }
+    .seed-info { font-size: 11px; color: #555; }
+    #diagnostics { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; max-width: 1100px; }
+    .diag-panel { background: #1a1a1a; border: 1px solid #333; padding: 8px 12px; font-size: 11px; color: #aaa; max-width: 530px; min-width: 530px; }
+    .diag-panel h3 { color: #888; font-size: 11px; margin-bottom: 4px; letter-spacing: 1px; }
+    .diag-row { display: flex; gap: 12px; }
+    .diag-col { flex: 1; }
+    .diag-val { color: #ddd; }
+    .diag-warn { color: #ff6; }
+    .diag-err { color: #f66; }
+    .diag-ok { color: #6f6; }
+  </style>
+</head>
+<body>
+  <h1><a href="/demo/demo-hub.html"><span class="matcha">Matcha2D</span></a> <span class="sep">vs</span> <a href="/demo/demo-hub.html"><span class="rapier">Rapier</span></a></h1>
+  <div id="controls">
+    <label>Scene:
+      <select id="scene">
+        <option value="bounce" selected>Bounce</option>
+        <option value="stack">Stack</option>
+        <option value="pyramid">Pyramid</option>
+        <option value="spin">Spin</option>
+        <option value="mixed">Mixed</option>
+      </select>
+    </label>
+    <label>Bodies:
+      <select id="bodyCount">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+      </select>
+    </label>
+    <button id="reset">Reset</button>
+    <button id="reseed">New Seed</button>
+    <input type="hidden" id="seed" value="42">
+    <label><input type="checkbox" id="animate" checked> Animate</label>
+    <label><input type="checkbox" id="showVertices"> Vertices</label>
+    <label class="slider-group">Friction:
+      <input type="range" id="friction" min="0" max="1" step="0.05" value="0.3">
+      <span class="slider-val" id="frictionVal">0.30</span>
+    </label>
+    <label class="slider-group">Restitution:
+      <input type="range" id="restitution" min="0" max="1" step="0.05" value="0.0">
+      <span class="slider-val" id="restitutionVal">0.00</span>
+    </label>
+    <label class="slider-group">Speed:
+      <input type="range" id="startSpeed" min="10" max="500" step="10" value="150">
+      <span class="slider-val" id="startSpeedVal">150</span>
+    </label>
+    <label class="slider-group">Gravity:
+      <input type="range" id="gravity" min="-2000" max="2000" step="50" value="0">
+      <span class="slider-val" id="gravityVal">0</span>
+    </label>
+  </div>
+  <div id="loading">Loading engines...</div>
+  <div id="viewport" style="display:none">
+    <div class="engine-panel">
+      <span class="engine-label matcha">Matcha2D</span>
+      <canvas id="canvasA" width="530" height="400"></canvas>
+      <div class="stats" id="statsA"></div>
+    </div>
+    <div class="engine-panel">
+      <span class="engine-label rapier">Rapier (Blueprint)</span>
+      <canvas id="canvasB" width="530" height="400"></canvas>
+      <div class="stats" id="statsB"></div>
+    </div>
+  </div>
+  <div id="diagnostics">
+    <div class="diag-panel">
+      <h3>Matcha2D Diagnostics</h3>
+      <div class="diag-row"><div class="diag-col" id="diagMatchaLeft"></div><div class="diag-col" id="diagMatchaRight"></div></div>
+    </div>
+    <div class="diag-panel">
+      <h3>Rapier Diagnostics</h3>
+      <div class="diag-row"><div class="diag-col" id="diagRapierLeft"></div><div class="diag-col" id="diagRapierRight"></div></div>
+    </div>
+  </div>
+  <div class="seed-info" id="seedInfo"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "@matcha2d/types": "../packages/types/dist/index.js",
+    "@matcha2d/physics-rust": "../packages/physics-rust/pkg/matcha2d_physics.js",
+    "@matcha2d/world": "../packages/world/dist/index.js"
+  }
+}
+</script>
+<script type="module">
+// ── Load both engines in parallel ──
+const [matchaWorld, rapierModule] = await Promise.all([
+  (async () => {
+    const { World } = await import('@matcha2d/world')
+    return World.create({ gravity: { x: 0, y: 0 } })
+  })(),
+  import('/node_modules/@dimforge/rapier2d-compat/rapier.mjs')
+])
+
+await rapierModule.init()
+const RAPIER = rapierModule
+
+const rapierWorld = new RAPIER.World({ x: 0, y: 0 })
+
+// ── Canvas setup ──
+const canvasA = document.getElementById('canvasA')
+const canvasB = document.getElementById('canvasB')
+const ctxA = canvasA.getContext('2d')
+const ctxB = canvasB.getContext('2d')
+const W = canvasA.width, H = canvasA.height
+
+document.getElementById('loading').style.display = 'none'
+document.getElementById('viewport').style.display = 'flex'
+
+// ── Seeded RNG ──
+let seed = 42
+function seededRandom() {
+  seed = (seed * 16807 + 0) % 2147483647
+  return (seed - 1) / 2147483646
+}
+
+// ── Shared state ──
+let matchaBodies = []
+let matchaWalls = []
+let rapierBodies = []
+let rapierWalls = []
+let bodyShapes = []
+
+const SHAPE_COLORS = {
+  circle:   { fill: 'rgba(100,180,255,0.18)', stroke: '#64b4ff' },
+  box:      { fill: 'rgba(64,180,128,0.18)', stroke: '#40b480' },
+  triangle: { fill: 'rgba(255,180,60,0.18)', stroke: '#ffb43c' },
+  pentagon: { fill: 'rgba(200,100,255,0.18)', stroke: '#c864ff' },
+  hexagon:  { fill: 'rgba(255,100,180,0.18)', stroke: '#ff64b4' },
+}
+
+function regularPolygonVerts(sides, radius) {
+  const verts = []
+  for (let i = 0; i < sides; i++) {
+    const angle = (2 * Math.PI * i) / sides - Math.PI / 2
+    verts.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius })
+  }
+  return verts
+}
+
+function randomShape() {
+  const shapes = ['circle', 'box', 'triangle', 'pentagon', 'hexagon']
+  return shapes[Math.floor(seededRandom() * shapes.length)]
+}
+
+// ── Rapier helpers ──
+function toRapierY(canvasY) { return H - canvasY }
+function toCanvasY(rapierY) { return H - rapierY }
+
+function createRapierWalls(restitution, friction) {
+  for (const wb of rapierWalls) rapierWorld.removeRigidBody(wb)
+  rapierWalls = []
+
+  const wallDescs = [
+    { hx: W / 2 + 20, hy: 10, x: W / 2, y: -10 },
+    { hx: W / 2 + 20, hy: 10, x: W / 2, y: H + 10 },
+    { hx: 10, hy: H / 2 + 20, x: -10, y: H / 2 },
+    { hx: 10, hy: H / 2 + 20, x: W + 10, y: H / 2 },
+  ]
+  for (const wd of wallDescs) {
+    const wb = rapierWorld.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(wd.x, wd.y)
+    )
+    rapierWorld.createCollider(
+      RAPIER.ColliderDesc.cuboid(wd.hx, wd.hy)
+        .setRestitution(restitution)
+        .setFriction(friction),
+      wb
+    )
+    rapierWalls.push(wb)
+  }
+}
+
+function addMatchaCollider(body, shapeName, radius, friction, restitution) {
+  switch (shapeName) {
+    case 'circle':
+      matchaWorld.addCollider(body, { shape: 'ball', radius, friction, restitution })
+      break
+    case 'box': {
+      const s = radius * 1.2
+      matchaWorld.addCollider(body, { shape: 'cuboid', halfExtentX: s, halfExtentY: s, friction, restitution })
+      break
+    }
+    case 'triangle':
+      matchaWorld.addCollider(body, { shape: 'polygon', vertices: regularPolygonVerts(3, radius), friction, restitution })
+      break
+    case 'pentagon':
+      matchaWorld.addCollider(body, { shape: 'polygon', vertices: regularPolygonVerts(5, radius), friction, restitution })
+      break
+    case 'hexagon':
+      matchaWorld.addCollider(body, { shape: 'polygon', vertices: regularPolygonVerts(6, radius), friction, restitution })
+      break
+    default:
+      matchaWorld.addCollider(body, { shape: 'ball', radius, friction, restitution })
+  }
+}
+
+function createMatchaWalls(restitution, friction) {
+  for (const b of matchaWalls) matchaWorld.destroyBody(b)
+  matchaWalls = []
+
+  const wallData = [
+    { x: W / 2, y: H - 5, hx: W / 2 + 20, hy: 10 },
+    { x: W / 2, y: 5, hx: W / 2 + 20, hy: 10 },
+    { x: 5, y: H / 2, hx: 10, hy: H / 2 + 20 },
+    { x: W - 5, y: H / 2, hx: 10, hy: H / 2 + 20 },
+  ]
+  for (const wd of wallData) {
+    const wall = matchaWorld.createBody({ positionX: wd.x, positionY: wd.y, type: 'static' })
+    matchaWorld.addCollider(wall, { shape: 'cuboid', halfExtentX: wd.hx, halfExtentY: wd.hy, friction, restitution })
+    matchaWalls.push(wall)
+  }
+}
+
+function generateBodyData(bodyCount, shapeSel, startSpeed) {
+  const bodyData = []
+  for (let i = 0; i < bodyCount; i++) {
+    const shapeName = shapeSel === 'mixed' ? randomShape() : shapeSel
+    const radius = 15 + seededRandom() * 25
+    const cx = radius + seededRandom() * (W - radius * 2)
+    const cy = radius + seededRandom() * (H - radius * 2)
+    const angle = seededRandom() * Math.PI * 2
+    const vx = (seededRandom() - 0.5) * startSpeed
+    const vy = (seededRandom() - 0.5) * startSpeed
+    bodyData.push({ shapeName, radius, cx, cy, angle, vx, vy })
+  }
+  return bodyData
+}
+
+// ── Init both engines with identical random data ──
+async function init() {
+  seed = parseInt(document.getElementById('seed')?.value) || seed
+  const localSeed = seed
+  const friction = parseFloat(document.getElementById('friction').value)
+  const restitution = parseFloat(document.getElementById('restitution').value)
+  const wallRestitution = restitution > 0 ? restitution : 1 - friction * 0.4
+  const bodyCount = parseInt(document.getElementById('bodyCount').value)
+  const scene = document.getElementById('scene').value
+  const startSpeed = parseFloat(document.getElementById('startSpeed').value)
+  const gravity = parseFloat(document.getElementById('gravity').value)
+
+  // Clean up
+  for (const b of matchaBodies) matchaWorld.destroyBody(b)
+  for (const b of matchaWalls) matchaWorld.destroyBody(b)
+  matchaBodies = []
+  matchaWalls = []
+
+  for (const b of rapierBodies) rapierWorld.removeRigidBody(b)
+  for (const b of rapierWalls) rapierWorld.removeRigidBody(b)
+  rapierBodies = []
+  rapierWalls = []
+
+  bodyShapes = []
+
+  // Set gravity for both engines
+  matchaWorld.setGravity(0, gravity)
+  rapierWorld.gravity = { x: 0, y: -gravity }
+
+  // Update gravity slider display
+  gravityVal.textContent = gravity
+
+  // Create walls for both engines
+  createMatchaWalls(wallRestitution, friction)
+  createRapierWalls(wallRestitution, friction)
+
+  // Generate body data
+  const bodyData = generateBodyData(bodyCount, scene === 'mixed' ? 'mixed' : 'box', startSpeed)
+  for (const bd of bodyData) {
+    bodyShapes.push({ shape: bd.shapeName, radius: bd.radius })
+  }
+
+  // Create Matcha2D bodies
+  for (const bd of bodyData) {
+    const body = matchaWorld.createBody({
+      positionX: bd.cx, positionY: bd.cy,
+      angle: bd.angle, type: 'dynamic',
+    })
+    addMatchaCollider(body, bd.shapeName, bd.radius, friction, restitution)
+    matchaWorld.setBodyVelocity(body, bd.vx, bd.vy)
+    matchaBodies.push(body)
+  }
+
+  // Create Rapier bodies
+  for (const bd of bodyData) {
+    const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(bd.cx, toRapierY(bd.cy))
+      .setRotation(-bd.angle)
+      .setLinvel(bd.vx, -bd.vy)
+
+    const body = rapierWorld.createRigidBody(bodyDesc)
+
+    let colliderDesc
+    switch (bd.shapeName) {
+      case 'circle':
+        colliderDesc = RAPIER.ColliderDesc.ball(bd.radius)
+        break
+      case 'box': {
+        const s = bd.radius * 1.2
+        colliderDesc = RAPIER.ColliderDesc.cuboid(s, s)
+        break
+      }
+      case 'triangle': {
+        const verts = regularPolygonVerts(3, bd.radius)
+        const flat = []
+        for (const v of verts) flat.push(v.x, -v.y)
+        colliderDesc = RAPIER.ColliderDesc.convexHull(new Float32Array(flat))
+        break
+      }
+      case 'pentagon': {
+        const verts = regularPolygonVerts(5, bd.radius)
+        const flat = []
+        for (const v of verts) flat.push(v.x, -v.y)
+        colliderDesc = RAPIER.ColliderDesc.convexHull(new Float32Array(flat))
+        break
+      }
+      case 'hexagon': {
+        const verts = regularPolygonVerts(6, bd.radius)
+        const flat = []
+        for (const v of verts) flat.push(v.x, -v.y)
+        colliderDesc = RAPIER.ColliderDesc.convexHull(new Float32Array(flat))
+        break
+      }
+      default:
+        colliderDesc = RAPIER.ColliderDesc.ball(bd.radius)
+    }
+
+    colliderDesc.setFriction(friction).setRestitution(restitution)
+    rapierWorld.createCollider(colliderDesc, body)
+    rapierBodies.push(body)
+  }
+}
+
+// ── Matcha2D step ──
+function stepMatcha(dt) {
+  if (!matchaWorld) return
+  matchaWorld.step(dt)
+}
+
+// ── Rapier step ──
+function stepRapier(dt) {
+  if (!rapierWorld) return
+  rapierWorld.timestep = dt
+  rapierWorld.step()
+}
+
+// ── Drawing ──
+function drawBody(ctx, px, py, canvasAngle, shapeName, radius) {
+  if (shapeName === 'floor') return
+  const colors = SHAPE_COLORS[shapeName] || SHAPE_COLORS.box
+  ctx.fillStyle = colors.fill
+  ctx.strokeStyle = colors.stroke
+  ctx.lineWidth = 1.5
+
+  const cos = Math.cos(canvasAngle), sin = Math.sin(canvasAngle)
+
+  if (shapeName === 'circle') {
+    ctx.beginPath()
+    ctx.arc(px, py, radius, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+  } else if (shapeName === 'box') {
+    const s = radius * 1.2
+    const lx = [-s, s, s, -s], ly = [-s, -s, s, s]
+    ctx.beginPath()
+    for (let v = 0; v < 4; v++) {
+      const wx = cos * lx[v] - sin * ly[v] + px
+      const wy = sin * lx[v] + cos * ly[v] + py
+      v === 0 ? ctx.moveTo(wx, wy) : ctx.lineTo(wx, wy)
+    }
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+  } else {
+    const sides = { triangle: 3, pentagon: 5, hexagon: 6 }[shapeName] || 4
+    const verts = regularPolygonVerts(sides, radius)
+    ctx.beginPath()
+    for (let v = 0; v < verts.length; v++) {
+      const wx = cos * verts[v].x - sin * verts[v].y + px
+      const wy = sin * verts[v].x + cos * verts[v].y + py
+      v === 0 ? ctx.moveTo(wx, wy) : ctx.lineTo(wx, wy)
+    }
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+  }
+}
+
+function drawVertices(ctx, px, py, canvasAngle, shapeName, radius) {
+  if (shapeName === 'floor') return
+  ctx.fillStyle = '#ff0'
+  const cos = Math.cos(canvasAngle), sin = Math.sin(canvasAngle)
+
+  let verts
+  if (shapeName === 'circle') {
+    verts = []
+    for (let a = 0; a < 8; a++) {
+      const ang = (Math.PI * 2 * a) / 8
+      verts.push({ x: Math.cos(ang) * radius, y: Math.sin(ang) * radius })
+    }
+  } else if (shapeName === 'box') {
+    const s = radius * 1.2
+    verts = [{ x: -s, y: -s }, { x: s, y: -s }, { x: s, y: s }, { x: -s, y: s }]
+  } else {
+    const sides = { triangle: 3, pentagon: 5, hexagon: 6 }[shapeName] || 4
+    verts = regularPolygonVerts(sides, radius)
+  }
+
+  for (const v of verts) {
+    const wx = cos * v.x - sin * v.y + px
+    const wy = sin * v.x + cos * v.y + py
+    ctx.beginPath()
+    ctx.arc(wx, wy, 3, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+function renderMatcha() {
+  ctxA.clearRect(0, 0, W, H)
+
+  // Draw walls
+  for (let i = 0; i < matchaWalls.length; i++) {
+    const [px, py] = matchaWorld.getBodyPosition(matchaWalls[i])
+    ctxA.fillStyle = 'rgba(255,255,255,0.03)'
+    ctxA.strokeStyle = '#333'
+    ctxA.lineWidth = 1
+    ctxA.fillRect(px - 10, py - 10, 20, 20)
+    ctxA.strokeRect(px - 10, py - 10, 20, 20)
+  }
+
+  // Draw bodies
+  for (let i = 0; i < matchaBodies.length; i++) {
+    const [px, py] = matchaWorld.getBodyPosition(matchaBodies[i])
+    const angle = matchaWorld.getBodyAngle(matchaBodies[i])
+    const b = bodyShapes[i]
+    drawBody(ctxA, px, py, angle, b.shape, b.radius)
+    if (document.getElementById('showVertices').checked)
+      drawVertices(ctxA, px, py, angle, b.shape, b.radius)
+  }
+}
+
+function renderRapier() {
+  ctxB.clearRect(0, 0, W, H)
+  for (let i = 0; i < rapierBodies.length; i++) {
+    const pos = rapierBodies[i].translation()
+    const angle = rapierBodies[i].rotation()
+    const b = bodyShapes[i]
+    drawBody(ctxB, pos.x, toCanvasY(pos.y), -angle, b.shape, b.radius)
+    if (document.getElementById('showVertices').checked)
+      drawVertices(ctxB, pos.x, toCanvasY(pos.y), -angle, b.shape, b.radius)
+  }
+}
+
+// ── FPS tracking ──
+const WINDOW = 60
+const frameDtsA = new Float64Array(WINDOW)
+const frameDtsB = new Float64Array(WINDOW)
+let ringIdx = 0, samplesFilled = 0
+
+// ── Diagnostic state ──
+let diagFrameCount = 0
+const DIAG_LOG_INTERVAL = 60 // Log to console every 60 frames
+const matchaSpeedHistory = []
+const rapierSpeedHistory = []
+const DIAG_HISTORY_LEN = 120
+
+function computeBodyStats(world, bodyHandles, bodyShapes) {
+  let totalSpeed = 0, maxSpeed = 0, totalAngVel = 0, maxAngVel = 0
+  const speeds = []
+  const angVels = []
+  for (let i = 0; i < bodyHandles.length; i++) {
+    const [vx, vy] = world.getBodyVelocity(bodyHandles[i])
+    const speed = Math.sqrt(vx * vx + vy * vy)
+    speeds.push(speed)
+    totalSpeed += speed
+    if (speed > maxSpeed) maxSpeed = speed
+    const angVel = world.getBodyAngularVelocity(bodyHandles[i])
+    const absAngVel = Math.abs(angVel)
+    angVels.push(angVel)
+    totalAngVel += absAngVel
+    if (absAngVel > maxAngVel) maxAngVel = absAngVel
+  }
+  return { avgSpeed: totalSpeed / Math.max(1, bodyHandles.length), maxSpeed, speeds, avgAngVel: totalAngVel / Math.max(1, bodyHandles.length), maxAngVel, angVels }
+}
+
+function computeRapierBodyStats(bodies) {
+  let totalSpeed = 0, maxSpeed = 0, totalAngVel = 0, maxAngVel = 0
+  const speeds = []
+  const angVels = []
+  for (const body of bodies) {
+    const vel = body.linvel()
+    const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y)
+    speeds.push(speed)
+    totalSpeed += speed
+    if (speed > maxSpeed) maxSpeed = speed
+    const angVel = body.angvel()
+    const absAngVel = Math.abs(angVel)
+    angVels.push(angVel)
+    totalAngVel += absAngVel
+    if (absAngVel > maxAngVel) maxAngVel = absAngVel
+  }
+  return { avgSpeed: totalSpeed / Math.max(1, bodies.length), maxSpeed, speeds, avgAngVel: totalAngVel / Math.max(1, bodies.length), maxAngVel, angVels }
+}
+
+function checkBodyOverlaps(world, bodyHandles, bodyShapes) {
+  let overlaps = 0
+  let maxOverlapDist = 0
+  const positions = []
+  for (let i = 0; i < bodyHandles.length; i++) {
+    positions.push(world.getBodyPosition(bodyHandles[i]))
+  }
+  for (let i = 0; i < bodyHandles.length; i++) {
+    const r1 = bodyShapes[i].radius * (bodyShapes[i].shape === 'circle' ? 1 : 1.2)
+    for (let j = i + 1; j < bodyHandles.length; j++) {
+      const r2 = bodyShapes[j].radius * (bodyShapes[j].shape === 'circle' ? 1 : 1.2)
+      const dx = positions[j][0] - positions[i][0]
+      const dy = positions[j][1] - positions[i][1]
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      const minDist = r1 + r2
+      if (dist < minDist) {
+        overlaps++
+        const overlap = minDist - dist
+        if (overlap > maxOverlapDist) maxOverlapDist = overlap
+      }
+    }
+  }
+  return { overlaps, maxOverlapDist }
+}
+
+function checkRapierOverlaps(bodies, bodyShapes) {
+  let overlaps = 0
+  let maxOverlapDist = 0
+  for (let i = 0; i < bodies.length; i++) {
+    const r1 = bodyShapes[i].radius * (bodyShapes[i].shape === 'circle' ? 1 : 1.2)
+    const posI = bodies[i].translation()
+    for (let j = i + 1; j < bodies.length; j++) {
+      const r2 = bodyShapes[j].radius * (bodyShapes[j].shape === 'circle' ? 1 : 1.2)
+      const posJ = bodies[j].translation()
+      const dx = posJ.x - posI.x
+      const dy = posJ.y - posI.y
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      const minDist = r1 + r2
+      if (dist < minDist) {
+        overlaps++
+        const overlap = minDist - dist
+        if (overlap > maxOverlapDist) maxOverlapDist = overlap
+      }
+    }
+  }
+  return { overlaps, maxOverlapDist }
+}
+
+function colorCode(val, warnThresh, errThresh, invert = false) {
+  if (!invert) {
+    if (val >= errThresh) return 'diag-err'
+    if (val >= warnThresh) return 'diag-warn'
+    return 'diag-ok'
+  } else {
+    if (val <= errThresh) return 'diag-err'
+    if (val <= warnThresh) return 'diag-warn'
+    return 'diag-ok'
+  }
+}
+
+function updateDiagnostics(dtSec) {
+  diagFrameCount++
+
+  // Matcha2D diagnostics
+  const mStats = computeBodyStats(matchaWorld, matchaBodies, bodyShapes)
+  const mOverlaps = checkBodyOverlaps(matchaWorld, matchaBodies, bodyShapes)
+
+  // Rapier diagnostics
+  const rStats = computeRapierBodyStats(rapierBodies)
+  const rOverlaps = checkRapierOverlaps(rapierBodies, bodyShapes)
+
+  // Matcha2D WASM diagnostics (if available)
+  let matchaContacts = 0, matchaMaxPen = 0, matchaDebugDump = ''
+  try {
+    matchaContacts = matchaWorld.contactPointCount
+    matchaMaxPen = matchaWorld.maxPenetration
+    matchaDebugDump = matchaWorld.debugDump
+  } catch (e) {
+    // Diagnostics not yet available (old WASM)
+  }
+
+  // Speed history for trend detection
+  matchaSpeedHistory.push(mStats.avgSpeed)
+  rapierSpeedHistory.push(rStats.avgSpeed)
+  if (matchaSpeedHistory.length > DIAG_HISTORY_LEN) matchaSpeedHistory.shift()
+  if (rapierSpeedHistory.length > DIAG_HISTORY_LEN) rapierSpeedHistory.shift()
+
+  // Speed trend (are bodies slowing down or speeding up?)
+  function speedTrend(history) {
+    if (history.length < 10) return 0
+    const recent = history.slice(-10).reduce((a, b) => a + b, 0) / 10
+    const older = history.slice(0, 10).reduce((a, b) => a + b, 0) / 10
+    return recent - older
+  }
+  const mTrend = speedTrend(matchaSpeedHistory)
+  const rTrend = speedTrend(rapierSpeedHistory)
+
+  // Update HTML panels
+  const diagMatchaLeft = document.getElementById('diagMatchaLeft')
+  const diagMatchaRight = document.getElementById('diagMatchaRight')
+  const diagRapierLeft = document.getElementById('diagRapierLeft')
+  const diagRapierRight = document.getElementById('diagRapierRight')
+
+  diagMatchaLeft.innerHTML = `
+    <div>Avg speed: <span class="diag-val">${mStats.avgSpeed.toFixed(1)}</span></div>
+    <div>Max speed: <span class="diag-val">${mStats.maxSpeed.toFixed(1)}</span></div>
+    <div>Avg ang vel: <span class="diag-val">${mStats.avgAngVel.toFixed(2)}</span></div>
+    <div>Max ang vel: <span class="diag-val">${mStats.maxAngVel.toFixed(2)}</span></div>
+    <div>Speed trend: <span class="${colorCode(Math.abs(mTrend), 5, 20)}">${mTrend > 0 ? '+' : ''}${mTrend.toFixed(2)}</span></div>
+    <div>Body overlaps: <span class="${colorCode(mOverlaps.overlaps, 1, 3)}">${mOverlaps.overlaps}</span> (max: ${mOverlaps.maxOverlapDist.toFixed(2)})</div>
+  `
+  diagMatchaRight.innerHTML = `
+    <div>Contacts (pts): <span class="diag-val">${matchaContacts}</span></div>
+    <div>Max penetration: <span class="${colorCode(matchaMaxPen, 0.5, 2)}">${matchaMaxPen.toFixed(4)}</span></div>
+    <div style="color:#666;word-break:break-all">${matchaDebugDump}</div>
+  `
+  diagRapierLeft.innerHTML = `
+    <div>Avg speed: <span class="diag-val">${rStats.avgSpeed.toFixed(1)}</span></div>
+    <div>Max speed: <span class="diag-val">${rStats.maxSpeed.toFixed(1)}</span></div>
+    <div>Avg ang vel: <span class="diag-val">${rStats.avgAngVel.toFixed(2)}</span></div>
+    <div>Max ang vel: <span class="diag-val">${rStats.maxAngVel.toFixed(2)}</span></div>
+    <div>Speed trend: <span class="${colorCode(Math.abs(rTrend), 5, 20)}">${rTrend > 0 ? '+' : ''}${rTrend.toFixed(2)}</span></div>
+    <div>Body overlaps: <span class="${colorCode(rOverlaps.overlaps, 1, 3)}">${rOverlaps.overlaps}</span> (max: ${rOverlaps.maxOverlapDist.toFixed(2)})</div>
+  `
+  diagRapierRight.innerHTML = `
+    <div>dt: <span class="diag-val">${(dtSec * 1000).toFixed(2)} ms</span></div>
+    <div>Engine step: <span class="diag-val">${rapierWorld.timestep ? (rapierWorld.timestep * 1000).toFixed(3) : '?'} ms</span></div>
+  `
+
+  // Console logging at interval
+  if (diagFrameCount <= 5 || diagFrameCount % DIAG_LOG_INTERVAL === 0) {
+    console.log(
+      `[Frame ${diagFrameCount}] ` +
+      `Matcha: spd=${mStats.avgSpeed.toFixed(1)} angvel=${mStats.avgAngVel.toFixed(2)} overlap=${mOverlaps.overlaps} pen=${matchaMaxPen.toFixed(4)} contacts=${matchaContacts} | ` +
+      `Rapier: spd=${rStats.avgSpeed.toFixed(1)} angvel=${rStats.avgAngVel.toFixed(2)} overlap=${rOverlaps.overlaps} | ` +
+      `dt=${(dtSec*1000).toFixed(2)}ms`
+    )
+  }
+
+  // Per-body detailed log every 120 frames
+  if (diagFrameCount % 120 === 0) {
+    console.group(`[Frame ${diagFrameCount}] Per-body detail`)
+    for (let i = 0; i < matchaBodies.length; i++) {
+      const [mx, my] = matchaWorld.getBodyPosition(matchaBodies[i])
+      const [mvx, mvy] = matchaWorld.getBodyVelocity(matchaBodies[i])
+      const ms = Math.sqrt(mvx*mvx + mvy*mvy)
+      const mAngVel = matchaWorld.getBodyAngularVelocity(matchaBodies[i])
+      const rapierPos = rapierBodies[i].translation()
+      const rapierVel = rapierBodies[i].linvel()
+      const rs = Math.sqrt(rapierVel.x*rapierVel.x + rapierVel.y*rapierVel.y)
+      const rAngVel = rapierBodies[i].angvel()
+      console.log(
+        `Body ${i} (${bodyShapes[i].shape}): ` +
+        `Matcha=(${mx.toFixed(1)},${my.toFixed(1)}) v=(${mvx.toFixed(1)},${mvy.toFixed(1)}) |${ms.toFixed(1)}| av=${mAngVel.toFixed(3)} ` +
+        `Rapier=(${rapierPos.x.toFixed(1)},${toCanvasY(rapierPos.y).toFixed(1)}) v=(${rapierVel.x.toFixed(1)},${(-rapierVel.y).toFixed(1)}) |${rs.toFixed(1)}| av=${rAngVel.toFixed(3)}`
+      )
+    }
+    console.groupEnd()
+  }
+}
+
+function avg(arr, filled) {
+  let s = 0
+  const n = Math.min(filled, WINDOW)
+  for (let i = 0; i < n; i++) s += arr[i]
+  return s / n
+}
+
+let last = null
+function loop(ts) {
+  const dt = last !== null ? ts - last : 0
+  last = ts
+  const dtSec = Math.min(dt / 1000, 0.05)
+
+  const animate = document.getElementById('animate').checked
+
+  const t0 = performance.now()
+  if (dt > 0 && animate && matchaBodies.length > 0) stepMatcha(dtSec)
+  const elapsedA = performance.now() - t0
+
+  const t1 = performance.now()
+  if (dt > 0 && animate && rapierBodies.length > 0) stepRapier(dtSec)
+  const elapsedB = performance.now() - t1
+
+  renderMatcha()
+  renderRapier()
+
+  updateDiagnostics(dtSec)
+
+  frameDtsA[ringIdx] = dt > 0 ? dt : 16.67
+  ringIdx = (ringIdx + 1) % WINDOW
+  samplesFilled++
+  const avgDt = avg(frameDtsA, samplesFilled)
+  const fps = avgDt > 0 ? 1000 / avgDt : 0
+
+  document.getElementById('statsA').textContent =
+    `${matchaBodies.length} bodies | step: ${elapsedA.toFixed(3)} ms | fps: ${fps.toFixed(1)}`
+  document.getElementById('statsB').textContent =
+    `${rapierBodies.length} bodies | step: ${elapsedB.toFixed(3)} ms | fps: ${fps.toFixed(1)}`
+
+  requestAnimationFrame(loop)
+}
+
+// ── UI bindings ──
+async function resetAll() {
+  ringIdx = 0; samplesFilled = 0
+  diagFrameCount = 0
+  matchaSpeedHistory.length = 0
+  rapierSpeedHistory.length = 0
+  await init()
+  document.getElementById('seedInfo').textContent = `Seed: ${seed}`
+  console.log(`%c[Reset] Seed: ${seed}, Bodies: ${matchaBodies.length}`, 'color: #a8d5a2')
+}
+document.getElementById('reset').addEventListener('click', resetAll)
+document.getElementById('reseed').addEventListener('click', () => {
+  seed = Math.floor(Math.random() * 2147483647)
+  resetAll()
+})
+document.getElementById('bodyCount').addEventListener('change', resetAll)
+document.getElementById('scene').addEventListener('change', resetAll)
+
+const frictionSlider = document.getElementById('friction')
+const restitutionSlider = document.getElementById('restitution')
+const startSpeedSlider = document.getElementById('startSpeed')
+const frictionVal = document.getElementById('frictionVal')
+const restitutionVal = document.getElementById('restitutionVal')
+const startSpeedVal = document.getElementById('startSpeedVal')
+
+frictionSlider.addEventListener('input', () => { frictionVal.textContent = parseFloat(frictionSlider.value).toFixed(2) })
+restitutionSlider.addEventListener('input', () => { restitutionVal.textContent = parseFloat(restitutionSlider.value).toFixed(2) })
+startSpeedSlider.addEventListener('input', () => { startSpeedVal.textContent = parseInt(startSpeedSlider.value) })
+
+const gravitySlider = document.getElementById('gravity')
+const gravityVal = document.getElementById('gravityVal')
+gravitySlider.addEventListener('input', () => { gravityVal.textContent = parseInt(gravitySlider.value) })
+
+;(async function main() {
+  await init()
+  requestAnimationFrame(loop)
+})()
+</script>
+</body>
+</html>

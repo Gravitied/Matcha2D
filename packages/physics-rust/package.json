@@ -1,0 +1,14 @@
+{
+  "name": "@matcha2d/physics-rust",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "pkg/matcha2d_physics.js",
+  "types": "pkg/matcha2d_physics.d.ts",
+  "files": ["pkg"],
+  "scripts": {
+    "build": "node build.mjs",
+    "rebuild": "node -e \"const fs=require('fs');['pkg','target'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch{}})\" && node build.mjs",
+    "clean": "node -e \"const fs=require('fs');['pkg','target'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch{}})\""
+  }
+}

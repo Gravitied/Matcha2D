@@ -10,6 +10,8 @@ pkg/
 .turbo/
 .claude/
 Template-Repo/
+CLAUDE.md
+.opencode/
 
 # WASM build intermediates (not the final dist output)
 packages/core/wasm/build/

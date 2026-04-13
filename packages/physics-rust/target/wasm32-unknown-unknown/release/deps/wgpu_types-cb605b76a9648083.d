@@ -1,0 +1,10 @@
+C:\Users\winsi\Projects\Matcha2D\packages\physics-rust\target\wasm32-unknown-unknown\release\deps\wgpu_types-cb605b76a9648083.d: C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\lib.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\assertions.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\counters.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\math.rs
+
+C:\Users\winsi\Projects\Matcha2D\packages\physics-rust\target\wasm32-unknown-unknown\release\deps\libwgpu_types-cb605b76a9648083.rlib: C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\lib.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\assertions.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\counters.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\math.rs
+
+C:\Users\winsi\Projects\Matcha2D\packages\physics-rust\target\wasm32-unknown-unknown\release\deps\libwgpu_types-cb605b76a9648083.rmeta: C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\lib.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\assertions.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\counters.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\math.rs
+
+C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\lib.rs:
+C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\assertions.rs:
+C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\counters.rs:
+C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-types-23.0.0\src\math.rs:

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Matcha2D — Blueprint (Rapier) Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #111; color: #eee; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 12px; }
+    h1 { font-size: 16px; color: #d5a8a8; letter-spacing: 2px; }
+    h1 a { color: #d5a8a8; text-decoration: none; }
+    h1 a:hover { text-decoration: underline; }
+    #controls { display: flex; gap: 16px; align-items: center; font-size: 13px; flex-wrap: wrap; justify-content: center; }
+    label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    select, button { background: #222; color: #eee; border: 1px solid #444; padding: 4px 10px; font-family: monospace; cursor: pointer; }
+    button:hover { background: #333; }
+    input[type="range"] { width: 80px; accent-color: #d5a8a8; }
+    .slider-val { min-width: 32px; text-align: right; color: #d5a8a8; }
+    .slider-group { display: flex; align-items: center; gap: 4px; }
+    canvas { border: 1px solid #333; }
+    #stats { font-size: 12px; color: #888; min-height: 1.4em; text-align: center; }
+    #loading { color: #d5a8a8; font-size: 14px; }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "@dimforge/rapier2d-compat": "../node_modules/@dimforge/rapier2d-compat/rapier.mjs"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/assets/blueprint-PGveF7j9.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="/assets/preload-helper-BlTxHScW.js">
+</head>
+<body>
+  <h1><a href="demo-hub.html">Matcha2D</a> — Blueprint (Rapier) Demo</h1>
+  <div id="controls">
+    <label>Shape:
+      <select id="shape">
+        <option value="circle">Circle</option>
+        <option value="box" selected>Box</option>
+        <option value="triangle">Triangle</option>
+        <option value="pentagon">Pentagon</option>
+        <option value="hexagon">Hexagon</option>
+        <option value="mixed">Mixed</option>
+      </select>
+    </label>
+    <label>Bodies:
+      <select id="bodyCount">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+      </select>
+    </label>
+    <button id="reset">Reset</button>
+    <label><input type="checkbox" id="animate" checked> Animate</label>
+    <label><input type="checkbox" id="showVertices"> Show Vertices</label>
+    <label class="slider-group">Friction:
+      <input type="range" id="friction" min="0" max="1" step="0.05" value="0.3">
+      <span class="slider-val" id="frictionVal">0.30</span>
+    </label>
+    <label class="slider-group">Mass:
+      <input type="range" id="mass" min="0.1" max="5" step="0.1" value="1">
+      <span class="slider-val" id="massVal">1.0</span>
+    </label>
+    <label class="slider-group">Start Speed:
+      <input type="range" id="startSpeed" min="10" max="500" step="10" value="150">
+      <span class="slider-val" id="startSpeedVal">150</span>
+    </label>
+  </div>
+  <div id="loading">Loading Rapier WASM engine...</div>
+  <canvas id="canvas" width="800" height="500" style="display:none"></canvas>
+  <div id="stats"></div>
+
+
+</body>
+</html>

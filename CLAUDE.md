@@ -1,6 +1,8 @@
 # Matcha2D
 
-A high-performance 2D physics engine. TypeScript-first, with a Rust/WASM core planned.
+-It is assumed all bugs/fixes or requests are meant as a fix/implementation for Matcha2D and its demos only, unless stated otherwise.
+
+A high-performance 2D physics engine. TypeScript-first, with a Rust/WASM core planned. This will be used for web animation and 2d web game development.
 
 ## Commands
 
@@ -15,9 +17,19 @@ D
 npm run build -w packages/core
 npm test -w packages/core
 ```
+## Wiki
+
+A persistent knowledge base lives at `wiki/`. The LLM maintains it; you source and direct.
+
+- **Drop sources** into `wiki/raw/` (markdown preferred; use Obsidian Web Clipper for articles)
+- **Ingest**: tell Claude "ingest wiki/raw/<file>" — it reads, extracts, updates pages, updates index + log
+- **Query**: ask any question — Claude searches `wiki/index.md`, reads relevant pages, answers with citations
+- **Lint**: ask "lint the wiki" — Claude checks for contradictions, orphans, gaps
+- **Schema**: `wiki/SCHEMA.md` — read this to understand conventions before any wiki operation
+
 ## Template
-Matcha2D_Blueprint folder : C:\Users\winsi\Projects\Matcha2D\Matcha2D_Blueprint
-Use the TMatcha2D_Blueprint folder to reference all algorithms and code as the working version. The Matcha2D_Blueprint should be treated as a perfect project and all errors should be assumed to be something elses fault if the fault is assumed to be the Matcha2D_Blueprint, Do not change any code inside of the Matcha2D_Blueprint only use it for reference.
+Matcha2D_Blueprint folder : C:\Users\winsi\Projects\Matcha2D\Project_References
+Use the Project_References folder to reference all algorithms and code as the working version. The Project_References should be treated as a perfect project and all errors should be assumed to be something elses fault if the fault is assumed to be the Project_References, Do not change any code inside of the Project_References only use it for reference.
 
 ## Architecture
 
@@ -30,23 +42,22 @@ User API (TS)  ->  Simulation Loop (TS)  ->  Physics Core (TS/WASM)  ->  Rendere
 | Package | Path | Owner | Purpose |
 |---------|------|-------|---------|
 | `@matcha2d/types` | `packages/types/` | Shared | Shared contract: buffer layout, interfaces, config, collision types |
-| `@matcha2d/core` | `packages/core/` | Dev A | Physics math, collision detection, constraint solver |
-| `@matcha2d/world` | `packages/world/` | Dev B | World API, body management, simulation loop |
+| `@matcha2d/physics-rust` | `packages/physics-rust/` | Shared | Rust 2D engine + `wasm-pack` JS/WASM (`pkg/`) — `PhysicsEngine` |
+| `@matcha2d/world` | `packages/world/` | Shell | World API around `PhysicsEngine`, fixed timestep, body/collider helpers |
 | `@matcha2d/render` | `packages/render/` | Dev B | Canvas2D / WebGL debug renderer |
 | `@matcha2d/tools` | `packages/tools/` | Dev B | Serialization, profiling, debug utilities |
 
 ### Dependency Graph
 
 ```
-@matcha2d/types      (no deps — build first)
-    ├── @matcha2d/core    (types)
-    │       │
-    ├───────┴── @matcha2d/world  (types + core)
-    ├── @matcha2d/render  (types)
-    └── @matcha2d/tools   (types)
+@matcha2d/types           (no deps — build first)
+    ├── @matcha2d/physics-rust  (WASM build; no TS deps except toolchain)
+    ├── @matcha2d/world         (types + physics-rust)
+    ├── @matcha2d/render        (types)
+    └── @matcha2d/tools       (types)
 ```
 
-Build order matters: types must build before everything else, core before world. The root `npm run build` script handles this automatically.
+Build order: `types` → `physics-rust` (WASM) → `world` → other workspaces. Root `npm run build` runs them in that order.
 
 ## The Shared Contract
 
@@ -86,7 +97,7 @@ Max capacity: 8192 bodies per world (`MAX_BODIES`). Max polygon vertices: 16 (`M
 
 ### PhysicsBackend Interface (`packages/types/src/backend.ts`)
 
-The single integration point between Dev A and Dev B:
+Optional contract for buffer-driven integrations (the default `World` path uses `PhysicsEngine` directly):
 
 ```typescript
 interface PhysicsBackend {
@@ -99,47 +110,29 @@ interface PhysicsBackend {
 }
 ```
 
-Dev B calls these methods from the simulation loop. Dev A implements them. The `collide()` method is the primary entry point for the full broadphase → narrowphase pipeline. In WASM mode, `broadphase`/`narrowphase`/`solveVelocity`/`integrate`/`solvePosition` are no-ops — Box2D handles everything internally during `collide()`.
+The `PhysicsBackend` interface in `packages/types` documents a buffer-oriented pipeline used when integrating alternate backends. The shipped engine is **`PhysicsEngine`** from `@matcha2d/physics-rust` (Rust + wasm-bindgen).
 
-## Dev A: Physics Core (`packages/core/`)
+## Physics engine (`packages/physics-rust/`)
 
-### Implemented
-- **Vec2 math** (`src/math/vec2.ts`) — flat-array operations (`vec2Add`, `vec2Dot`, `vec2Cross`, `vec2Normalize`, etc.) + scalar helpers (`dot`, `cross`, `length`)
-- **Mat2 rotation** (`src/math/mat2.ts`) — `mat2FromAngle`, `mat2MulVec`, `mat2TransposeMulVec`
-- **AABB** (`src/collision/aabb.ts`) — `aabbOverlap`, `aabbMerge`, `aabbContains`, `aabbArea`, `aabbPerimeter`, `computeBodyAABB`
-- **Broadphase** (`src/collision/broadphase.ts`) — Sort-and-Sweep (`sap`), incremental Dynamic AABB Tree (`dynamicTree`, default), legacy BVH alias; dispatches via `broadphase()`
-- **Dynamic Tree** (`src/collision/dynamic-tree.ts`) — incremental AABB tree with `insert`, `remove`, `updateAll`, `queryPairs`
-- **GJK + EPA narrowphase** (`src/collision/gjk.ts`) — full GJK+EPA for convex shapes including circle-circle analytical shortcut; exported as `gjkNarrowphase`
-- **Narrowphase dispatch** (`src/collision/narrowphase.ts`) — thin wrapper that routes to `gjkNarrowphase`
-- **Collision pipeline** (`src/collision/pipeline.ts`) — `collide()` (broadphase → narrowphase), `narrowphaseDispatch()`
-- **Shape system** (`src/collision/shapes.ts`) — `ShapeHandler` interface + registry (`registerShapeHandler`, `getShapeHandler`); built-in handlers for Circle, Box, Polygon
-- **Simplex / Polytope** (`src/collision/simplex.ts`, `src/collision/polytope.ts`) — GJK/EPA support structures
-- **Contact tracker** (`src/collision/contact-tracker.ts`) — tracks begin/stay/end contact events across frames
-- **Sequential impulse solver** (`src/solver/sequential-impulse.ts`) — `solveVelocity`, `solvePosition`, `integrate`; block solver for 2-contact manifolds, impulse accumulation, Baumgarte position correction
-- **WASM backend** (`src/wasm/`) — `WasmPhysicsBackend` (implements `PhysicsBackend`), `WasmModule` loader (`loadWasmModule`), Box2D Emscripten bridge (`box2d.d.ts`); WASM build artifact at `wasm/build/box2d.js` (gitignored)
+Single Rust crate (`matcha2d-physics`): dynamic tree broadphase, SAT-style narrowphase + manifolds, sequential impulse / PGS solver, optional sleep, TOI-style recovery on CPU step, optional WebGPU path. Built with `wasm-pack` to `packages/physics-rust/pkg/` for the web.
 
-### Collision Pipeline
+### Collision / solve pipeline (CPU)
 ```
-Broadphase (DynamicTree / SAP)
-  -> Narrowphase (GJK + EPA for all convex shapes; circle-circle analytical)
-    -> Contact manifolds
-      -> Sequential impulse solver (velocity + position)
+Broadphase (dynamic BVH; swept AABB variant optional)
+  -> Narrowphase (convex tests + contact manifolds)
+    -> Contact tracker (persistence / warm-start hints)
+      -> Velocity solver + substep integration + position stabilization
 ```
 
-## Dev B: Engine Shell
+## Engine shell
 
 ### `@matcha2d/world` (`packages/world/`)
-- `World` class — owns buffers, creates/destroys bodies, orchestrates simulation
-  - `World.createWithTS(config?)` — TypeScript backend (default)
-  - `World.createWithWasm(config?)` — WASM backend (async, Box2D)
-  - `World.createWithBackend(backend, config?)` — custom `PhysicsBackend`
+- `World` class — thin wrapper over `PhysicsEngine`, maps `WorldConfig` into Rust setters
+  - `World.create(config?)` — async: loads WASM glue, constructs `PhysicsEngine`, applies config
   - `createBody(def)` / `destroyBody(handle)` — body lifecycle
   - `step(dt)` — fixed-timestep accumulator loop
   - `renderAlpha` — interpolation factor for rendering
   - `setCollisionCallbacks(callbacks)` — begin/stay/end contact events
-- `BodyManager` (`body-manager.ts`) — flat-array allocation helpers
-- `SimulationLoop` (`simulation-loop.ts`) — fixed-timestep accumulator with interpolation alpha
-- `IslandManager` (`island.ts`) — union-find for sleep optimization
 
 ### `@matcha2d/render` (`packages/render/`)
 - `IRenderer` interface — `begin()`, `drawBodies()`, `end()`, `destroy()`
@@ -220,3 +213,14 @@ Key fields (all optional — `DEFAULT_WORLD_CONFIG` provides sensible defaults):
 - **tsup** ^8.3 — ESM bundling + DTS generation (wraps esbuild)
 - **vitest** ^3.0 — test runner
 - **webGL** for render engine.
+
+## Rust physics GPU (`packages/physics-rust`)
+
+Optional **WebGPU / wgpu** hybrid pipeline (off by default):
+
+- **CPU:** sleep, BVH broadphase, collision filtering, pair list, **step-start TOI recovery** (same as CPU step) before packing GPU buffers.
+- **GPU:** `integrate_main` uses **`dt / num_substeps`** per outer iteration (matches CPU PGS substepping). Pipeline: integrate → narrowphase (ball/ball, ball/box, box/box; polygons use conservative sphere) → Jacobi contact resolve (`clear_atomics_main`, `solve_contacts_main`, `apply_deltas_main`) with fixed-point atomics; normal correction clamped by `max_corrective_velocity * dt`; read back bodies and manifolds.
+- **`PhysicsWorld`:** `init_gpu()` (async) or `init_gpu_blocking()` (native); when `gpu_acceleration_enabled` and `gpu_runtime` are set, `step()` uses GPU (`step_gpu()`), otherwise `step_cpu()` (GJK + TOI + PGS). GPU failures fall back to CPU with a stderr message (native). Use **`step_cpu()`** for full in-step CCD/PGS parity on extreme tunneling scenes.
+- **WASM:** `PhysicsEngine::init_gpu()` async; `setGpuAccelerationEnabled` in JS bindings.
+- **Limits:** `GPU_MAX_BODIES`, `GPU_MAX_COLLIDERS`, `GPU_MAX_PAIRS` in `packages/physics-rust/src/gpu/types.rs`.
+- **Shaders:** `packages/physics-rust/shaders/physics.wgsl`.

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Matcha2D — Collision Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #111; color: #eee; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 12px; }
+    h1 { font-size: 16px; color: #a8d5a2; letter-spacing: 2px; }
+    h1 a { color: #a8d5a2; text-decoration: none; }
+    h1 a:hover { text-decoration: underline; }
+    #controls { display: flex; gap: 16px; align-items: center; font-size: 13px; flex-wrap: wrap; justify-content: center; }
+    label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    select, button { background: #222; color: #eee; border: 1px solid #444; padding: 4px 10px; font-family: monospace; cursor: pointer; }
+    button:hover { background: #333; }
+    input[type="range"] { width: 80px; accent-color: #a8d5a2; }
+    .slider-val { min-width: 32px; text-align: right; color: #a8d5a2; }
+    .slider-group { display: flex; align-items: center; gap: 4px; }
+    canvas { border: 1px solid #333; }
+    #stats { font-size: 12px; color: #888; min-height: 1.4em; text-align: center; }
+    #loading { color: #a8d5a2; font-size: 14px; }
+    #diagnostics { background: #1a1a1a; border: 1px solid #333; padding: 8px 12px; font-size: 11px; color: #aaa; max-width: 700px; width: 100%; }
+    #diagnostics h3 { color: #888; font-size: 11px; margin-bottom: 4px; letter-spacing: 1px; }
+    .diag-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .diag-val { color: #ddd; }
+    .diag-warn { color: #ff6; }
+    .diag-err { color: #f66; }
+    .diag-ok { color: #6f6; }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "@matcha2d/types": "../packages/types/dist/index.js",
+    "@matcha2d/physics-rust": "../packages/physics-rust/pkg/matcha2d_physics.js",
+    "@matcha2d/world": "../packages/world/dist/index.js",
+    "@matcha2d/render": "../packages/render/dist/index.js"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/assets/collision-Bu3py3Cq.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="/assets/index-DvfkaJC6.js">
+  <link rel="modulepreload" crossorigin href="/assets/index-BsnR3MPp.js">
+</head>
+<body>
+  <h1><a href="demo-hub.html">Matcha2D</a> — Collision Demo</h1>
+  <div id="controls">
+    <label>Scene:
+      <select id="scene">
+        <option value="bounce" selected>Bounce</option>
+        <option value="stack">Stack</option>
+        <option value="pyramid">Pyramid</option>
+        <option value="spin">Spin</option>
+        <option value="mixed">Mixed</option>
+      </select>
+    </label>
+    <label>Bodies:
+      <select id="bodyCount">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+      </select>
+    </label>
+    <button id="reset">Reset</button>
+    <label><input type="checkbox" id="animate" checked> Animate</label>
+    <label><input type="checkbox" id="showVertices"> Show Vertices</label>
+    <label><input type="checkbox" id="showNarrowphase" title="True collider outline from WASM (SAT / narrowphase)"> Narrowphase hitboxes</label>
+    <label><input type="checkbox" id="showContacts"> Show Contacts</label>
+    <label class="slider-group">Friction:
+      <input type="range" id="friction" min="0" max="1" step="0.05" value="0.3">
+      <span class="slider-val" id="frictionVal">0.30</span>
+    </label>
+    <label class="slider-group">Restitution:
+      <input type="range" id="restitution" min="0" max="1" step="0.05" value="0.0">
+      <span class="slider-val" id="restitutionVal">0.00</span>
+    </label>
+    <label class="slider-group">Gravity:
+      <input type="range" id="gravity" min="-1000" max="1000" step="10" value="400">
+      <span class="slider-val" id="gravityVal">400</span>
+    </label>
+    <label class="slider-group">Speed:
+      <input type="range" id="startSpeed" min="10" max="500" step="10" value="150">
+      <span class="slider-val" id="startSpeedVal">150</span>
+    </label>
+  </div>
+  <div id="loading">Loading WASM engine...</div>
+  <canvas id="canvas" width="800" height="500" style="display:none"></canvas>
+  <div id="stats"></div>
+  <div id="diagnostics" style="display:none">
+    <h3>Physics Diagnostics</h3>
+    <div class="diag-row">
+      <div id="diagSpeed"></div>
+      <div id="diagContacts"></div>
+      <div id="diagOverlap"></div>
+    </div>
+  </div>
+
+
+</body>
+</html>

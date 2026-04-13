@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Matcha2D — Side-by-Side Comparison</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #111; color: #eee; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 10px; }
+    h1 { font-size: 16px; letter-spacing: 2px; }
+    h1 a { text-decoration: none; }
+    h1 a:hover { text-decoration: underline; }
+    h1 .matcha { color: #a8d5a2; }
+    h1 .rapier { color: #d5a8a8; }
+    h1 .sep { color: #666; }
+    #controls { display: flex; gap: 12px; align-items: center; font-size: 13px; flex-wrap: wrap; justify-content: center; }
+    label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    select, button { background: #222; color: #eee; border: 1px solid #444; padding: 4px 10px; font-family: monospace; cursor: pointer; }
+    button:hover { background: #333; }
+    input[type="range"] { width: 70px; accent-color: #a8d5a2; }
+    .slider-val { min-width: 28px; text-align: right; color: #a8d5a2; }
+    .slider-group { display: flex; align-items: center; gap: 4px; }
+    #viewport { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .engine-panel { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .engine-label { font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+    .engine-label.matcha { color: #a8d5a2; }
+    .engine-label.rapier { color: #d5a8a8; }
+    canvas { border: 1px solid #333; }
+    .stats { font-size: 11px; color: #888; min-height: 1.4em; text-align: center; }
+    #loading { color: #a8d5a2; font-size: 14px; }
+    .seed-info { font-size: 11px; color: #555; }
+    #diagnostics { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; max-width: 1100px; }
+    .diag-panel { background: #1a1a1a; border: 1px solid #333; padding: 8px 12px; font-size: 11px; color: #aaa; max-width: 530px; min-width: 530px; }
+    .diag-panel h3 { color: #888; font-size: 11px; margin-bottom: 4px; letter-spacing: 1px; }
+    .diag-row { display: flex; gap: 12px; }
+    .diag-col { flex: 1; }
+    .diag-val { color: #ddd; }
+    .diag-warn { color: #ff6; }
+    .diag-err { color: #f66; }
+    .diag-ok { color: #6f6; }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "@matcha2d/types": "../packages/types/dist/index.js",
+    "@matcha2d/physics-rust": "../packages/physics-rust/pkg/matcha2d_physics.js",
+    "@matcha2d/world": "../packages/world/dist/index.js",
+    "@matcha2d/render": "../packages/render/dist/index.js",
+    "@dimforge/rapier2d-compat": "../node_modules/@dimforge/rapier2d-compat/rapier.mjs"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/assets/compare-DI9F5PfU.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="/assets/preload-helper-BlTxHScW.js">
+  <link rel="modulepreload" crossorigin href="/assets/index-BsnR3MPp.js">
+</head>
+<body>
+  <h1><a href="demo-hub.html"><span class="matcha">Matcha2D</span></a> <span class="sep">vs</span> <a href="demo-hub.html"><span class="rapier">Rapier</span></a> <span style="color:#ff0;font-size:10px">v2-meter-scale</span></h1>
+  <div id="controls">
+    <label>Scene:
+      <select id="scene">
+        <option value="bounce" selected>Bounce</option>
+        <option value="stack">Stack</option>
+        <option value="pyramid">Pyramid</option>
+        <option value="spin">Spin</option>
+        <option value="mixed">Mixed</option>
+      </select>
+    </label>
+    <label>Bodies:
+      <select id="bodyCount">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+      </select>
+    </label>
+    <button id="reset">Reset</button>
+    <button id="reseed">New Seed</button>
+    <input type="hidden" id="seed" value="42">
+    <label><input type="checkbox" id="animate" checked> Animate</label>
+    <label><input type="checkbox" id="useGpu"> GPU Acceleration</label>
+    <label><input type="checkbox" id="showVertices"> Vertices</label>
+    <label><input type="checkbox" id="showNarrowphase" title="Green: WASM narrowphase collider outline (authoritative)"> Narrowphase hitboxes</label>
+    <label class="slider-group">Friction:
+      <input type="range" id="friction" min="0" max="1" step="0.05" value="0.3">
+      <span class="slider-val" id="frictionVal">0.30</span>
+    </label>
+    <label class="slider-group">Restitution:
+      <input type="range" id="restitution" min="0" max="1" step="0.05" value="0.0">
+      <span class="slider-val" id="restitutionVal">0.00</span>
+    </label>
+    <label class="slider-group">Speed:
+      <input type="range" id="startSpeed" min="10" max="500" step="10" value="150">
+      <span class="slider-val" id="startSpeedVal">150</span>
+    </label>
+    <label class="slider-group">Gravity:
+      <input type="range" id="gravity" min="-2000" max="2000" step="50" value="400">
+      <span class="slider-val" id="gravityVal">400</span>
+    </label>
+  </div>
+  <div id="loading">Loading engines...</div>
+  <div id="viewport" style="display:none">
+    <div class="engine-panel">
+      <span class="engine-label matcha">Matcha2D</span>
+      <canvas id="canvasA" width="530" height="400"></canvas>
+      <div class="stats" id="statsA"></div>
+    </div>
+    <div class="engine-panel">
+      <span class="engine-label rapier">Rapier (Blueprint)</span>
+      <canvas id="canvasB" width="530" height="400"></canvas>
+      <div class="stats" id="statsB"></div>
+    </div>
+  </div>
+  <div id="diagnostics">
+    <div class="diag-panel">
+      <h3>Matcha2D Diagnostics</h3>
+      <div class="diag-row"><div class="diag-col" id="diagMatchaLeft"></div><div class="diag-col" id="diagMatchaRight"></div></div>
+    </div>
+    <div class="diag-panel">
+      <h3>Rapier Diagnostics</h3>
+      <div class="diag-row"><div class="diag-col" id="diagRapierLeft"></div><div class="diag-col" id="diagRapierRight"></div></div>
+    </div>
+  </div>
+  <div class="seed-info" id="seedInfo"></div>
+
+<!-- Bare specifiers for static hosting (node server.js, etc.). Vite rewrites these when using npm run dev. -->
+
+</body>
+</html>

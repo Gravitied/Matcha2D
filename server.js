@@ -7,6 +7,9 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const root = path.resolve(__dirname)
 
+// Serves files as-is. Demo HTML uses bare imports (@matcha2d/*, @dimforge/*); use `npm run dev`
+// (Vite) for demos that resolve those to package source and WASM.
+
 const MIME_TYPES = {
   '.html': 'text/html',
   '.js': 'application/javascript',
@@ -43,8 +46,8 @@ const server = http.createServer((req, res) => {
   })
 })
 
-const PORT = 3000
+const PORT = 3080
 server.listen(PORT, () => {
-  console.log(`Matcha2D demo server running at http://localhost:${PORT}`)
-  console.log(`Open http://localhost:${PORT}/demo/collision.html`)
+  console.log(`Static file server at http://localhost:${PORT} (no bare-import resolution).`)
+  console.log(`Demos with live packages: npm run dev → http://localhost:3000`)
 })

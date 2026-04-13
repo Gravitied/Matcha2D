@@ -1,0 +1,10 @@
+C:\Users\winsi\Projects\Matcha2D\packages\physics-rust\target\wasm32-unknown-unknown\release\deps\js_sys-aabd0b8d0558c8a5.d: C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\lib.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\mod.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\queue.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\task\singlethread.rs
+
+C:\Users\winsi\Projects\Matcha2D\packages\physics-rust\target\wasm32-unknown-unknown\release\deps\libjs_sys-aabd0b8d0558c8a5.rlib: C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\lib.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\mod.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\queue.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\task\singlethread.rs
+
+C:\Users\winsi\Projects\Matcha2D\packages\physics-rust\target\wasm32-unknown-unknown\release\deps\libjs_sys-aabd0b8d0558c8a5.rmeta: C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\lib.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\mod.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\queue.rs C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\task\singlethread.rs
+
+C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\lib.rs:
+C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\mod.rs:
+C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\queue.rs:
+C:\Users\winsi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.94\src\futures\task\singlethread.rs:
